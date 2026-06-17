@@ -1,65 +1,98 @@
-# 项目上下文
+# AGENTS.md
 
-### 版本技术栈
+## 项目概览
 
-- **Framework**: Next.js 16 (App Router)
-- **Core**: React 19
-- **Language**: TypeScript 5
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **Styling**: Tailwind CSS 4
+影视收藏 H5：用户可搜索电影/电视剧、查看详情（封面 + 简介 + 主演 + 导演 + 评分）、标记观看状态（想看/在看/看过/弃剧）、写个人评分（1-5 星）和备注。
+
+整体气质是"复古私人影院"——深色背景 + 琥珀金主色 + 衬线体标题 + 玻璃质感海报。
+
+## 技术栈
+
+- **Framework**: Next.js 16 (App Router, custom server)
+- **Core**: React 19 + TypeScript 5
+- **Styling**: Tailwind CSS 4 + shadcn/ui
+- **Backend**: Next.js API Routes（`src/app/api/**/route.ts`）
+- **DB**: Supabase（PostgreSQL），两张表：`media_items`、`favorites`
+- **数据填充**: `scripts/seed.ts`（手写 50 部热门影视作为初始数据）
 
 ## 目录结构
 
 ```
-├── public/                 # 静态资源
-├── scripts/                # 构建与启动脚本
-│   ├── build.sh            # 构建脚本
-│   ├── dev.sh              # 开发环境启动脚本
-│   ├── prepare.sh          # 预处理脚本
-│   └── start.sh            # 生产环境启动脚本
-├── src/
-│   ├── app/                # 页面路由与布局
-│   ├── components/ui/      # Shadcn UI 组件库
-│   ├── hooks/              # 自定义 Hooks
-│   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
-│   └── server.ts           # 自定义服务端入口
-├── next.config.ts          # Next.js 配置
-├── package.json            # 项目依赖管理
-└── tsconfig.json           # TypeScript 配置
+src/
+├── app/
+│   ├── api/                  # API 路由
+│   │   ├── search/route.ts           # GET 搜索影视
+│   │   ├── media/[id]/route.ts       # GET 媒体详情 + 当前设备收藏状态
+│   │   └── favorites/route.ts        # GET 列表 / POST upsert / DELETE 删除
+│   ├── components/ui/        # shadcn 组件
+│   ├── components/media/     # 业务组件（Poster、SearchTab、FavoritesTab、DetailSheet、ProfileTab、BottomNav）
+│   ├── lib/
+│   │   ├── client.ts         # 客户端 fetch 封装 + device id hook
+│   │   ├── device.ts         # 服务端 device id 解析
+│   │   └── media-types.ts    # 影视/收藏/状态 类型与常量
+│   ├── storage/database/
+│   │   ├── shared/schema.ts          # drizzle schema 定义（来源）
+│   │   └── supabase-client.ts        # Supabase 客户端单例（service_role）
+│   ├── globals.css           # 设计 token（CSS vars）+ 自定义动画
+│   ├── layout.tsx
+│   └── page.tsx              # 三 Tab 单页（搜索/收藏/我的）
+scripts/
+└── seed.ts                   # 一次性预填 50 部影视
 ```
 
-- 项目文件（如 app 目录、pages 目录、components 等）默认初始化到 `src/` 目录下。
+## 数据模型
 
-## 包管理规范
+`media_items`:
+- `id uuid PK` · `title text` · `original_title text?` · `type movie|tv` · `year int?`
+- `director text?` · `actors text[]?` · `genre text[]?` · `region text?`
+- `description text?` · `poster_url text?` · `rating numeric?`
+- 海报用 CSS 渐变占位：`poster_url = "gradient:hex1/hex2"`，前端 `Poster` 组件解析
 
-**仅允许使用 pnpm** 作为包管理器，**严禁使用 npm 或 yarn**。
-**常用命令**：
-- 安装依赖：`pnpm add <package>`
-- 安装开发依赖：`pnpm add -D <package>`
-- 安装所有依赖：`pnpm install`
-- 移除依赖：`pnpm remove <package>`
+`favorites`:
+- 复合唯一键 `(device_id, media_id)`
+- `status wish|watching|watched|dropped` · `personal_rating int?` · `note text?` · `progress int?`
 
-## 开发规范
+## 设备隔离
 
-### 编码规范
+- 无登录态：使用 `localStorage` 存 `media_device_id`（UUID），请求时通过 `x-device-id` header 透传
+- 服务端 `lib/device.ts` 兜底从 cookie 取，再不行生成新的（httpOnly + 1y）
+- API 不区分用户 → 所有设备共享 `media_items`，`favorites` 按 device 隔离
 
-- 默认按 TypeScript `strict` 心智写代码；优先复用当前作用域已声明的变量、函数、类型和导入，禁止引用未声明标识符或拼错变量名。
-- 禁止隐式 `any` 和 `as any`；函数参数、返回值、解构项、事件对象、`catch` 错误在使用前应有明确类型或先完成类型收窄，并清理未使用的变量和导入。
+## API 约定
 
-### next.config 配置规范
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/search?q=xxx` | GET | 模糊匹配 title / original_title / director / actors（PostgreSQL `ilike` + `cs`），按 rating 降序，最多 20 条 |
+| `/api/media/[id]` | GET | 返回媒体 + 当前设备 favorite 状态（需 `x-device-id`） |
+| `/api/favorites` | GET | 列出当前设备收藏，可选 `?status=xxx` 过滤 |
+| `/api/favorites` | POST | upsert，支持 **partial update**：未传的字段保留 DB 已有的值 |
+| `/api/favorites?media_id=xxx` | DELETE | 删除收藏 |
 
-- 配置的路径不要写死绝对路径，必须使用 path.resolve(__dirname, ...)、import.meta.dirname 或 process.cwd() 动态拼接。
+## 关键实现细节
 
-### Hydration 问题防范
+- **Partial update**：`POST /api/favorites` 先 `select *` 查已有记录，再 merge 未传入的字段后 upsert。这样前端调同一个接口既能新增又能改状态/评分/备注。
+- **海报**：`Poster` 组件只接受 `posterUrl` 字符串，自己解析 `gradient:hex1/hex2` 协议，渲染为 `linear-gradient(135deg, #c1, #c2)`。若 URL 为 null，用 fallback 深棕色渐变。
+- **状态徽章颜色**：`STATUS_COLORS` 在 `lib/media-types.ts` 定义了 4 种状态对应的 Tailwind 颜色（amber / emerald / rose / zinc）。
+- **设备 ID 注入**：`useDeviceId()` hook 在 `useEffect` 里读 localStorage，避免 SSR 阶段的 hydration mismatch。
 
-1. 严禁在 JSX 渲染逻辑中直接使用 typeof window、Date.now()、Math.random() 等动态数据。**必须使用 'use client' 并配合 useEffect + useState 确保动态内容仅在客户端挂载后渲染**；同时严禁非法 HTML 嵌套（如 <p> 嵌套 <div>）。
-2. **禁止使用 head 标签**，优先使用 metadata，详见文档：https://nextjs.org/docs/app/api-reference/functions/generate-metadata
-   1. 三方 CSS、字体等资源可在 `globals.css` 中顶部通过 `@import` 引入或使用 next/font
-   2. preload, preconnect, dns-prefetch 通过 ReactDOM 的 preload、preconnect、dns-prefetch 方法引入
-   3. json-ld 可阅读 https://nextjs.org/docs/app/guides/json-ld
+## 本地开发
 
-## UI 设计与组件规范 (UI & Styling Standards)
+```bash
+pnpm install
+pnpm tsx scripts/seed.ts   # 首次：预填 50 部影视
+coze dev                    # 启动（端口 5000，由 DEPLOY_RUN_PORT 控制）
+```
 
-- 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
-- Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+## 测试
+
+- 静态检查：`pnpm ts-check`、`pnpm lint --quiet`
+- 接口冒烟：用 `test_run` 工具覆盖 `search / media/[id] / favorites` 三个端点
+- partial update 行为：先 POST 全字段，再 POST 只传 status，验证未传字段保留
+
+## 常见坑
+
+- **`pnpm` only**：禁止用 npm/yarn
+- **不要在 JSX 渲染时读 `window` / `Date.now()` / `Math.random()`**：必须用 `useEffect + useState` 包裹
+- **禁止使用 `<head>` 标签**：用 metadata API 或 `ReactDOM.preload` / `ReactDOM.preconnect`
+- **Supabase 操作必须经过 API route**：前端不直连，避免泄露 service_role key
+- **`/api/favorites` POST 不传 personal_rating/note 时会保留 DB 已有的值**，别误以为是 bug

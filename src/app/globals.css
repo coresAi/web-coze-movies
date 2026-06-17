@@ -1,3 +1,5 @@
+/* 思源宋体 + 思源黑体（CN 域，避免跨境链路） */
+@import url('https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -43,95 +45,152 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --font-sans:
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', ui-sans-serif,
+    'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', ui-sans-serif,
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
   --font-serif:
-    'Noto Serif SC', 'Songti SC', 'SimSun', ui-serif, Georgia, Cambria,
+    'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', ui-serif, Georgia, Cambria,
     'Times New Roman', Times, serif;
 }
 
+/* 老灯箱影院主题：深棕 + 琥珀金 */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.5rem;
+  /* 影院散场后的走廊 */
+  --background: #0F0E0C;
+  --foreground: #F5F0E8;
+  /* 卡片：深棕，海报纸张的影子色 */
+  --card: #1C1814;
+  --card-foreground: #F5F0E8;
+  --popover: #1C1814;
+  --popover-foreground: #F5F0E8;
+  /* 主色：琥珀金，老式放映机的光 */
+  --primary: #E8A33D;
+  --primary-foreground: #1C1814;
+  /* 次级：低饱和度 */
+  --secondary: #2A2420;
+  --secondary-foreground: #F5F0E8;
+  --muted: #2A2420;
+  --muted-foreground: #9A9088;
+  --accent: #2E2823;
+  --accent-foreground: #F5F0E8;
+  --destructive: #C03B2D;
+  --border: #2E2823;
+  --input: #2E2823;
+  --ring: #E8A33D;
+  --chart-1: #E8A33D;
+  --chart-2: #C03B2D;
+  --chart-3: #6B8E5A;
+  --chart-4: #8B6F4E;
+  --chart-5: #B89A75;
+  --sidebar: #0F0E0C;
+  --sidebar-foreground: #F5F0E8;
+  --sidebar-primary: #E8A33D;
+  --sidebar-primary-foreground: #1C1814;
+  --sidebar-accent: #2A2420;
+  --sidebar-accent-foreground: #F5F0E8;
+  --sidebar-border: #2E2823;
+  --sidebar-ring: #E8A33D;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0F0E0C;
+  --foreground: #F5F0E8;
+  --card: #1C1814;
+  --card-foreground: #F5F0E8;
+  --popover: #1C1814;
+  --popover-foreground: #F5F0E8;
+  --primary: #E8A33D;
+  --primary-foreground: #1C1814;
+  --secondary: #2A2420;
+  --secondary-foreground: #F5F0E8;
+  --muted: #2A2420;
+  --muted-foreground: #9A9088;
+  --accent: #2E2823;
+  --accent-foreground: #F5F0E8;
+  --destructive: #C03B2D;
+  --border: #2E2823;
+  --input: #2E2823;
+  --ring: #E8A33D;
+  --chart-1: #E8A33D;
+  --chart-2: #C03B2D;
+  --chart-3: #6B8E5A;
+  --chart-4: #8B6F4E;
+  --chart-5: #B89A75;
+  --sidebar: #0F0E0C;
+  --sidebar-foreground: #F5F0E8;
+  --sidebar-primary: #E8A33D;
+  --sidebar-primary-foreground: #1C1814;
+  --sidebar-accent: #2A2420;
+  --sidebar-accent-foreground: #F5F0E8;
+  --sidebar-border: #2E2823;
+  --sidebar-ring: #E8A33D;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
   }
 }
 
-body {
-  @apply font-sans;
+/* 灯箱海报光晕：海报悬停时微微变亮 */
+.poster-glow {
+  box-shadow:
+    0 1px 0 0 rgba(232, 163, 61, 0.04),
+    0 8px 24px -8px rgba(232, 163, 61, 0.18),
+    0 0 0 1px rgba(232, 163, 61, 0.05) inset;
+  transition: box-shadow 0.25s ease-out, transform 0.25s ease-out;
+}
+.poster-glow:hover, .poster-glow:active {
+  box-shadow:
+    0 1px 0 0 rgba(232, 163, 61, 0.10),
+    0 16px 40px -10px rgba(232, 163, 61, 0.35),
+    0 0 0 1px rgba(232, 163, 61, 0.15) inset;
+  transform: translateY(-2px);
+}
+
+/* 心跳：收藏按钮 */
+@keyframes heart-beat {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.3); }
+  50% { transform: scale(0.95); }
+  75% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.heart-beat {
+  animation: heart-beat 0.5s ease-out;
+}
+
+/* stagger 入场 */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+/* 滚动条隐藏（移动端横向滚动 chip 时） */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* 灯箱渐变海报：背景由 LLM 给的两个颜色生成 */
+.poster-gradient {
+  background: linear-gradient(135deg, var(--p1) 0%, var(--p2) 100%);
 }
