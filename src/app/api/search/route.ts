@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getOrCreateDeviceId } from '@/lib/device';
-import type { MediaItem, MediaType } from '@/lib/media-types';
+import type { MediaItem, MediaType, WatchStatus } from '@/lib/media-types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,8 +18,6 @@ const DOUBAN_HEADERS: Record<string, string> = {
   referer: 'https://movie.douban.com/',
   cookie: 'bid=Nu5NUcFsKtM; ll="118318"',
 };
-
-type MediaResult = MediaItem & { favorite_status?: string | null };
 
 type DoubanSuggestItem = {
   episode?: string;
@@ -181,9 +179,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 4) 按 douban 返回顺序（豆瓣默认按相关度），最多 20
-    const results: MediaResult[] = persisted
+    const results: MediaItem[] = persisted
       .slice(0, 20)
-      .map((m) => ({ ...m, favorite_status: favoritesByMedia[m.id] ?? null }));
+      .map((m) => ({ ...m, favorite_status: (favoritesByMedia[m.id] as WatchStatus | null) ?? null }));
 
     return NextResponse.json({ results, source: 'douban' });
   } catch (err) {

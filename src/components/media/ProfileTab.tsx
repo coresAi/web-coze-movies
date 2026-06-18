@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useDeviceId, apiFetch } from '@/lib/client';
-import { Heart, Film, Tv, Bookmark, Search } from 'lucide-react';
-import type { FavoriteWithMedia } from '@/lib/media-types';
+import { Heart, Film, Tv, Bookmark, Search, Download, Upload, Loader2 } from 'lucide-react';
+import type { FavoriteWithMedia, ExportItem } from '@/lib/media-types';
 
 interface ProfileTabProps {
   refreshKey: number;
+  onImportDone?: () => void;
 }
 
 interface Stats {
@@ -25,10 +26,14 @@ const TIPS = [
   '据说周末补片效率最高。',
 ];
 
-export function ProfileTab({ refreshKey }: ProfileTabProps) {
+export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
   const deviceId = useDeviceId();
   const [stats, setStats] = useState<Stats>({ total: 0, wish: 0, watching: 0, watched: 0, dropped: 0 });
   const [tip, setTip] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -55,6 +60,91 @@ export function ProfileTab({ refreshKey }: ProfileTabProps) {
   useEffect(() => {
     setTip(TIPS[Math.floor(Math.random() * TIPS.length)]);
   }, []);
+
+  async function handleExport() {
+    if (!deviceId) return;
+    setExporting(true);
+    setMsg(null);
+    try {
+      const data = await apiFetch<{ results: FavoriteWithMedia[] }>(`/api/favorites`, { deviceId });
+      const items: ExportItem[] = data.results.map((f) => ({
+        title: f.media.title,
+        original_title: f.media.original_title,
+        type: f.media.type,
+        year: f.media.year,
+        director: f.media.director,
+        actors: f.media.actors,
+        genre: f.media.genre,
+        region: f.media.region,
+        rating: f.media.rating,
+        poster_url: f.media.poster_url,
+        douban_id: f.media.douban_id,
+        status: f.status,
+        personal_rating: f.personal_rating,
+        note: f.note,
+        progress: f.progress,
+        export_at: new Date().toISOString(),
+      }));
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `灯箱收藏_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg({ type: 'success', text: `已导出 ${items.length} 条收藏` });
+    } catch {
+      setMsg({ type: 'error', text: '导出失败' });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !deviceId) return;
+    setImporting(true);
+    setMsg(null);
+    try {
+      const text = await file.text();
+      const items: ExportItem[] = JSON.parse(text);
+      if (!Array.isArray(items) || items.length === 0) throw new Error('无效文件');
+      let success = 0;
+      for (const item of items) {
+        // 先确保 media 存在（用 douban_id 或 title 搜索 upsert）
+        let mediaId = '';
+        if (item.douban_id) {
+          // 尝试通过 douban_id 查找已有记录
+          const search = await fetch(`/api/search?q=${encodeURIComponent(item.title)}`).then((r) => r.json());
+          const found = search.results?.find((m: { douban_id?: string }) => m.douban_id === item.douban_id);
+          mediaId = found?.id || '';
+        }
+        if (!mediaId) {
+          // 跳过找不到 media 的项
+          continue;
+        }
+        await apiFetch(`/api/favorites`, {
+          method: 'POST',
+          body: JSON.stringify({
+            media_id: mediaId,
+            status: item.status,
+            personal_rating: item.personal_rating ?? undefined,
+            note: item.note ?? undefined,
+            progress: item.progress ?? undefined,
+          }),
+          deviceId,
+        });
+        success++;
+      }
+      setMsg({ type: 'success', text: `已导入 ${success}/${items.length} 条收藏` });
+      onImportDone?.();
+    } catch {
+      setMsg({ type: 'error', text: '导入失败，请检查文件格式' });
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5 px-4 pt-4">
@@ -87,6 +177,41 @@ export function ProfileTab({ refreshKey }: ProfileTabProps) {
           <Row icon={Heart}>给喜欢的作品打 1-5 星，写几句备注</Row>
           <Row icon={Film}>所有数据保存在本机，换设备会看不到哦</Row>
         </div>
+      </div>
+
+      {/* 导入 / 导出 */}
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">数据管理</p>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card py-2.5 active:bg-accent disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            <span className="text-xs">导出收藏</span>
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card py-2.5 active:bg-accent disabled:opacity-50"
+          >
+            {importing ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+            <span className="text-xs">导入收藏</span>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </div>
+        {msg && (
+          <p className={`mt-2 text-xs ${msg.type === 'success' ? 'text-emerald-300' : 'text-rose-300'}`}>
+            {msg.text}
+          </p>
+        )}
       </div>
 
       <p className="pb-2 text-center text-[11px] text-muted-foreground/60">

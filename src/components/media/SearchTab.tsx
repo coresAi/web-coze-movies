@@ -1,24 +1,27 @@
 'use client';
 
-import { Search, X, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { Search, X, Loader2, Heart } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { useDeviceId, apiFetch } from '@/lib/client';
 import { Poster } from '@/components/media/Poster';
-import type { MediaItem, MediaType } from '@/lib/media-types';
+import type { MediaItem, FavoriteResponse } from '@/lib/media-types';
 
 const HOT_KEYWORDS = ['肖申克的救赎', '盗梦空间', '琅琊榜', '流浪地球', '隐秘的角落', '千与千寻', '让子弹飞', '黑镜'];
 
 interface SearchTabProps {
   onSelect: (m: MediaItem) => void;
+  refreshKey: number;
+  onRefresh: () => void;
 }
 
-export function SearchTab({ onSelect }: SearchTabProps) {
+export function SearchTab({ onSelect, refreshKey, onRefresh }: SearchTabProps) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState<'local' | 'douban' | 'empty' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
   const deviceId = useDeviceId();
 
   async function runSearch(query: string) {
@@ -59,6 +62,39 @@ export function SearchTab({ onSelect }: SearchTabProps) {
     setError(null);
     setSearched(false);
     setSource(null);
+  }
+
+  async function toggleFav(m: MediaItem) {
+    if (!deviceId) return;
+    const mid = m.id;
+    setFavLoading((prev) => new Set(prev).add(mid));
+    try {
+      if (m.favorite_status) {
+        // 已收藏 → 取消
+        await apiFetch(`/api/favorites?media_id=${mid}`, {
+          method: 'DELETE',
+          deviceId,
+        });
+        setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: null } : r)));
+      } else {
+        // 未收藏 → 以「想看」收藏
+        const data = await apiFetch<FavoriteResponse>(`/api/favorites`, {
+          method: 'POST',
+          body: JSON.stringify({ media_id: mid, status: 'wish' }),
+          deviceId,
+        });
+        setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: 'wish' } : r)));
+      }
+      onRefresh();
+    } catch {
+      // 静默失败
+    } finally {
+      setFavLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(mid);
+        return next;
+      });
+    }
   }
 
   return (
@@ -130,14 +166,25 @@ export function SearchTab({ onSelect }: SearchTabProps) {
           </div>
           <div className="grid grid-cols-3 gap-3 pb-4">
             {results.map((m, idx) => (
-              <button
-                key={m.id}
-                onClick={() => onSelect(m)}
-                className="fade-up text-left"
-                style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}
-              >
-                <Poster item={m} size="sm" />
-              </button>
+              <div key={m.id} className="relative fade-up" style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}>
+                <button onClick={() => onSelect(m)} className="w-full text-left">
+                  <Poster item={m} size="sm" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); void toggleFav(m); }}
+                  disabled={favLoading.has(m.id)}
+                  className="absolute right-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform active:scale-110"
+                >
+                  <Heart
+                    className={`size-3.5 transition-all duration-200 ${
+                      m.favorite_status
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'text-white/80'
+                    } ${favLoading.has(m.id) ? 'animate-pulse' : ''}`}
+                    strokeWidth={1.8}
+                  />
+                </button>
+              </div>
             ))}
           </div>
         </div>

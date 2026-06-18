@@ -32,6 +32,7 @@ export interface MediaItem {
   backdrop_url: string | null;
   rating: number | null;
   douban_id: string | null;
+  favorite_status: WatchStatus | null;
   created_at: string;
 }
 
@@ -49,4 +50,28 @@ export interface Favorite {
 
 export interface FavoriteWithMedia extends Favorite {
   media: MediaItem;
+}
+
+export interface FavoriteResponse {
+  result: FavoriteWithMedia;
+  deviceId: string;
+}
+
+export interface ExportItem {
+  title: string;
+  original_title: string | null;
+  type: MediaType;
+  year: number | null;
+  director: string | null;
+  actors: string[] | null;
+  genre: string[] | null;
+  region: string | null;
+  rating: number | null;
+  poster_url: string | null;
+  douban_id: string | null;
+  status: WatchStatus;
+  personal_rating: number | null;
+  note: string | null;
+  progress: number | null;
+  export_at: string;
 }

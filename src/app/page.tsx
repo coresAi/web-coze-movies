@@ -81,14 +81,14 @@ export default function HomePage() {
       </header>
 
       <div className="flex-1 pb-20">
-        {tab === 'discover' && <SearchTab onSelect={(m) => openDetail(m, null)} />}
+        {tab === 'discover' && <SearchTab onSelect={(m) => openDetail(m, null)} refreshKey={favoritesRefresh} onRefresh={() => setFavoritesRefresh((v) => v + 1)} />}
         {tab === 'favorites' && (
           <FavoritesTab
             refreshKey={favoritesRefresh}
             onSelect={(m, f) => openDetail(m, f)}
           />
         )}
-        {tab === 'profile' && <ProfileTab refreshKey={favoritesRefresh} />}
+        {tab === 'profile' && <ProfileTab refreshKey={favoritesRefresh} onImportDone={() => setFavoritesRefresh((v) => v + 1)} />}
       </div>
 
       <BottomNav active={tab} onChange={setTab} />
