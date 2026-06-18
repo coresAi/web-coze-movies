@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const DOUBAN_SEARCH_URL = 'https://movie.douban.com/j/subject_suggest';
+const DOUBAN_ABSTRACT_URL = 'https://movie.douban.com/j/subject_abstract';
 // 真实可用的豆瓣请求头（维持登录态 + UA + Referer）
 const DOUBAN_HEADERS: Record<string, string> = {
   accept: '*/*',
@@ -15,6 +16,7 @@ const DOUBAN_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
   'x-requested-with': 'XMLHttpRequest',
   referer: 'https://movie.douban.com/',
+  cookie: 'bid=Nu5NUcFsKtM; ll="118318"',
 };
 
 type MediaResult = MediaItem & { favorite_status?: string | null };
@@ -28,6 +30,26 @@ type DoubanSuggestItem = {
   year?: string;
   sub_title?: string;
   id?: string;
+};
+
+type DoubanAbstractSubject = {
+  rate?: string;
+  star?: number;
+  directors?: string[];
+  actors?: string[];
+  types?: string[];
+  region?: string;
+  duration?: string;
+  release_year?: string;
+  episodes_count?: string;
+  subtype?: string;
+  is_tv?: boolean;
+  title?: string;
+};
+
+type DoubanAbstractResponse = {
+  r: number;
+  subject?: DoubanAbstractSubject;
 };
 
 function normalizeType(raw: string | undefined): MediaType {
@@ -54,34 +76,62 @@ async function fetchDoubanSuggest(q: string): Promise<DoubanSuggestItem[]> {
 }
 
 /**
+ * 调豆瓣 subject_abstract 获取评分/演员/导演/类型/地区
+ * 每个 item 并行请求，失败时静默兜底
+ */
+async function fetchDoubanAbstracts(
+  items: DoubanSuggestItem[],
+): Promise<Map<string, DoubanAbstractSubject>> {
+  const map = new Map<string, DoubanAbstractSubject>();
+  const results = await Promise.allSettled(
+    items.map(async (it) => {
+      if (!it.id) return;
+      const url = `${DOUBAN_ABSTRACT_URL}?subject_id=${it.id}`;
+      const res = await fetch(url, { headers: DOUBAN_HEADERS, cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as DoubanAbstractResponse;
+      if (data.r === 0 && data.subject) {
+        map.set(it.id!, data.subject);
+      }
+    }),
+  );
+  // 静默忽略失败的请求
+  return map;
+}
+
+/**
  * 把豆瓣数据 upsert 到 media_items（以 douban_id 作为 conflict 键）
- * 保留 DB 已有的 description/actors/director/rating（如已通过详情页或 seed 写入）
+ * 用 subject_abstract 补全评分/演员/导演/类型/地区
  */
 async function upsertDoubanItems(
   supabase: ReturnType<typeof getSupabaseClient>,
   items: DoubanSuggestItem[],
+  abstracts: Map<string, DoubanAbstractSubject>,
 ): Promise<MediaItem[]> {
   // 仅保留有 douban_id 的有效条目
   const valid = items.filter((it) => !!it.id);
   if (valid.length === 0) return [];
 
   const rows = valid.map((it) => {
-    // 豆瓣语义：title 是 subject 的主标题（subject 详情页 v:itemReviewed 也是它），
-    // sub_title 是原名/别名/补充。当两者不同，sub_title 当作 original_title。
     const main = (it.title || '').trim();
     const sub = (it.sub_title || '').trim();
+    const abs = abstracts.get(it.id!);
+
     return {
       douban_id: it.id!,
       title: main || sub || '(无标题)',
       original_title: sub && sub !== main ? sub : null,
       type: normalizeType(it.type),
-      year: it.year ? Number(it.year) : null,
+      year: abs?.release_year ? Number(abs.release_year) : it.year ? Number(it.year) : null,
       poster_url: it.img ?? null,
+      director: abs?.directors?.length ? abs.directors[0] : null,
+      actors: abs?.actors?.length ? abs.actors : null,
+      genre: abs?.types?.length ? abs.types : null,
+      region: abs?.region ?? null,
+      rating: abs?.rate ? Number(abs.rate) : null,
     };
   });
 
-  // 冲突时只刷新可能被豆瓣更新的字段（title / year / type / poster_url / original_title），
-  // 保留 description/actors/director/rating 等人工/详情写入的字段
   const { data, error } = await supabase
     .from('media_items')
     .upsert(rows, {
@@ -103,14 +153,17 @@ export async function GET(request: NextRequest) {
   const { deviceId } = getOrCreateDeviceId(request);
 
   try {
-    // 1) 调豆瓣
+    // 1) 调豆瓣搜索
     const doubanList = await fetchDoubanSuggest(q);
     if (doubanList.length === 0) {
       return NextResponse.json({ results: [], source: 'douban' });
     }
 
+    // 1.5) 并行获取每部影视的详情（评分/演员/导演/类型/地区）
+    const abstracts = await fetchDoubanAbstracts(doubanList);
+
     // 2) upsert 到 supabase（缓存）
-    const persisted = await upsertDoubanItems(supabase, doubanList);
+    const persisted = await upsertDoubanItems(supabase, doubanList, abstracts);
     if (persisted.length === 0) {
       return NextResponse.json({ results: [], source: 'douban' });
     }

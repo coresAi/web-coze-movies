@@ -9,6 +9,16 @@ interface PosterProps {
   className?: string;
 }
 
+// 将豆瓣图片走代理（防盗链绕过）
+function proxyPosterUrl(url: string | null): string | null {
+  if (!url) return null;
+  // 豆瓣图片走本地代理
+  if (/^https:\/\/img\d+\.doubanio\.com\//.test(url)) {
+    return `/api/poster?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 // 解析 poster_url，支持 "gradient:hex1/hex2" 协议
 function parsePosterStyle(posterUrl: string | null): { background: string; isGradient: boolean } {
   if (!posterUrl) return { background: 'linear-gradient(135deg, #2A2420, #1C1814)', isGradient: true };
@@ -22,10 +32,8 @@ function parsePosterStyle(posterUrl: string | null): { background: string; isGra
       };
     }
   }
-  if (posterUrl.startsWith('http')) {
-    return { background: `url(${posterUrl}) center/cover`, isGradient: false };
-  }
-  return { background: 'linear-gradient(135deg, #2A2420, #1C1814)', isGradient: true };
+  // 真实图片：背景设 fallback 渐变色，img 标签覆盖
+  return { background: 'linear-gradient(135deg, #2A2420, #1C1814)', isGradient: false };
 }
 
 const sizeMap = {
@@ -37,8 +45,9 @@ const sizeMap = {
 export function Poster({ item, size = 'md', className = '' }: PosterProps) {
   const [errored, setErrored] = useState(false);
   const { background, isGradient } = parsePosterStyle(item.poster_url);
+  const displayUrl = proxyPosterUrl(item.poster_url);
 
-  const showImage = !isGradient && !errored;
+  const showImage = !isGradient && !errored && !!displayUrl;
 
   return (
     <div
@@ -47,7 +56,7 @@ export function Poster({ item, size = 'md', className = '' }: PosterProps) {
     >
       {showImage && (
         <img
-          src={item.poster_url!}
+          src={displayUrl}
           alt={item.title}
           className="absolute inset-0 h-full w-full object-cover"
           onError={() => setErrored(true)}
