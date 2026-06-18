@@ -16,7 +16,7 @@ export function SearchTab({ onSelect }: SearchTabProps) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [source, setSource] = useState<'local' | 'llm' | 'empty' | null>(null);
+  const [source, setSource] = useState<'local' | 'douban' | 'empty' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const deviceId = useDeviceId();
@@ -27,7 +27,7 @@ export function SearchTab({ onSelect }: SearchTabProps) {
     setError(null);
     setSearched(true);
     try {
-      const data = await apiFetch<{ results: MediaItem[]; source: 'local' | 'llm' | 'empty' }>(
+      const data = await apiFetch<{ results: MediaItem[]; source: 'local' | 'douban' | 'empty' }>(
         `/api/search?q=${encodeURIComponent(query)}`,
         { deviceId }
       );
@@ -124,7 +124,7 @@ export function SearchTab({ onSelect }: SearchTabProps) {
             <p className="text-xs text-muted-foreground">
               共 {results.length} 部 ·{' '}
               <span className="text-foreground/70">
-                {source === 'llm' ? 'AI 推荐' : '本地资料库'}
+                {source === 'douban' ? '豆瓣' : '本地资料库'}
               </span>
             </p>
           </div>

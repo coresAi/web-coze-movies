@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { STATUS_LABELS, type MediaItem, type WatchStatus, type FavoriteWithMedia } from '@/lib/media-types';
 import { Poster } from '@/components/media/Poster';
-import { X, Star, Check, Loader2 } from 'lucide-react';
+import { X, Star, Check, Loader2, ExternalLink } from 'lucide-react';
 import { useDeviceId, apiFetch } from '@/lib/client';
 
 interface DetailSheetProps {
@@ -156,11 +156,23 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
           )}
 
           {/* 简介 */}
-          {item.description && (
+          {item.description ? (
             <div className="mt-4">
               <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">简介</h2>
               <p className="mt-1.5 text-sm leading-relaxed text-foreground/85">{item.description}</p>
             </div>
+          ) : (
+            item.douban_id && (
+              <a
+                href={`https://movie.douban.com/subject/${item.douban_id}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex items-center justify-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2.5 text-xs text-foreground/80 transition-colors active:bg-accent"
+              >
+                在豆瓣查看完整简介、演员表
+                <ExternalLink className="size-3" />
+              </a>
+            )
           )}
 
           {/* 导演 / 演员 */}
