@@ -21,21 +21,27 @@
 src/
 ├── app/
 │   ├── api/                  # API 路由
-│   │   ├── search/route.ts           # GET 搜索影视
-│   │   ├── media/[id]/route.ts       # GET 媒体详情 + 当前设备收藏状态
-│   │   └── favorites/route.ts        # GET 列表 / POST upsert / DELETE 删除
+│   │   ├── search/route.ts   # GET 搜索影视（豆瓣 subject_suggest + subject_abstract）
+│   │   ├── media/[id]/route.ts # GET 媒体详情
+│   │   ├── poster/route.ts   # GET 豆瓣图片代理（防 Referer 防盗链）
+│   │   └── favorites/route.ts # GET 列表 / POST upsert（partial update）/ DELETE 删除
 │   ├── components/ui/        # shadcn 组件
-│   ├── components/media/     # 业务组件（Poster、SearchTab、FavoritesTab、DetailSheet、ProfileTab、BottomNav）
+│   ├── components/media/     # 业务组件
+│   │   ├── CollectionTab.tsx  # 合并搜索+收藏（搜索模式 / 收藏模式）
+│   │   ├── Poster.tsx        # 海报组件（渐变/真实图片/豆瓣代理）
+│   │   ├── DetailSheet.tsx   # 影视详情弹窗
+│   │   ├── ProfileTab.tsx    # 我的（统计+导入导出）
+│   │   └── BottomNav.tsx     # 底部导航（收藏页/我的）
 │   ├── lib/
 │   │   ├── client.ts         # 客户端 fetch 封装 + device id hook
 │   │   ├── device.ts         # 服务端 device id 解析
 │   │   └── media-types.ts    # 影视/收藏/状态 类型与常量
 │   ├── storage/database/
-│   │   ├── shared/schema.ts          # drizzle schema 定义（来源）
-│   │   └── supabase-client.ts        # Supabase 客户端单例（service_role）
-│   ├── globals.css           # 设计 token（CSS vars）+ 自定义动画
+│   │   ├── shared/schema.ts  # drizzle schema 定义
+│   │   └── supabase-client.ts # Supabase 客户端单例（service_role）
+│   ├── globals.css           # 设计 token + 自定义动画
 │   ├── layout.tsx
-│   └── page.tsx              # 三 Tab 单页（搜索/收藏/我的）
+│   └── page.tsx              # 两 Tab 单页（收藏页/我的）
 scripts/
 └── seed.ts                   # 一次性预填 50 部影视
 ```
