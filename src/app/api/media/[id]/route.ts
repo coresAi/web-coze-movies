@@ -30,5 +30,29 @@ export async function GET(
     .eq('media_id', id)
     .maybeSingle();
 
-  return NextResponse.json({ media, favorite: favorite ?? null });
+  // 查询豆瓣在线播放平台
+  let vendors: { title: string; url: string; is_paid: boolean }[] = [];
+  try {
+    if (media.douban_id) {
+      const doubanRes = await fetch(
+        `https://m.douban.com/rexxar/api/v2/movie/${media.douban_id}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            Referer: `https://m.douban.com/movie/${media.douban_id}/`,
+          },
+        }
+      );
+      if (doubanRes.ok) {
+        const doubanData = await doubanRes.json();
+        vendors = doubanData.vendors || [];
+      }
+    }
+  } catch {
+    // 豆瓣不可用时不阻塞详情返回
+  }
+
+  return NextResponse.json({ media, favorite: favorite ?? null, vendors });
 }

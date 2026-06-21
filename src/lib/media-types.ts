@@ -48,6 +48,12 @@ export interface Favorite {
   updated_at: string;
 }
 
+export interface Vendor {
+  title: string;
+  url: string;
+  is_paid: boolean;
+}
+
 export interface FavoriteWithMedia extends Favorite {
   media: MediaItem;
 }

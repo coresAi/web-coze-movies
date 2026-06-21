@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { STATUS_LABELS, type MediaItem, type WatchStatus, type FavoriteWithMedia } from '@/lib/media-types';
+import { useState, useEffect } from 'react';
+import { STATUS_LABELS, type MediaItem, type WatchStatus, type FavoriteWithMedia, type Vendor } from '@/lib/media-types';
 import { Poster } from '@/components/media/Poster';
-import { X, Star, Check, Loader2, ExternalLink } from 'lucide-react';
+import { X, Star, Check, Loader2, ExternalLink, Play } from 'lucide-react';
 import { useDeviceId, apiFetch } from '@/lib/client';
 
 interface DetailSheetProps {
@@ -18,8 +18,25 @@ const STATUS_BUTTONS: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped']
 export function DetailSheet({ item, initialFavorite, onClose, onChange }: DetailSheetProps) {
   const deviceId = useDeviceId();
   const [favorite, setFavorite] = useState<FavoriteWithMedia | null>(initialFavorite);
+  const [vendors, setVendors] = useState<Vendor[] | null>(null);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState(initialFavorite?.note ?? '');
+
+  // 获取播放源
+  useEffect(() => {
+    if (!deviceId) return;
+    let cancelled = false;
+    (async () => {
+      setVendorsLoading(true);
+      try {
+        const data = await apiFetch<{ media: any; vendors: Vendor[] }>(`/api/media/${item.id}`, { deviceId });
+        if (!cancelled && data.vendors) setVendors(data.vendors);
+      } catch (_) { /* ignore */ }
+      if (!cancelled) setVendorsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [deviceId, item.id]);
 
   async function setStatus(status: WatchStatus) {
     if (!deviceId) return;
@@ -190,6 +207,40 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
               </p>
             )}
           </div>
+
+          {/* 播放平台 */}
+          {vendors && vendors.length > 0 && (
+            <div className="mt-5 border-t border-border pt-4">
+              <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                播放平台
+              </h2>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {vendors.map((v, i) => {
+                  const isDoubanApp = v.url.startsWith('douban://');
+                  const handleClick = () => {
+                    if (isDoubanApp) {
+                      window.open(v.url, '_blank');
+                    } else {
+                      window.open(v.url, '_blank', 'noopener,noreferrer');
+                    }
+                  };
+                  return (
+                    <button
+                      key={i}
+                      onClick={handleClick}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-3 py-1.5 text-xs text-foreground/90 transition-colors hover:bg-accent active:scale-[0.97]"
+                    >
+                      <Play className="size-3.5" />
+                      {v.title}
+                      {v.is_paid && (
+                        <span className="text-[10px] text-amber-500/80">付费</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 状态选择 */}
           <div className="mt-5 border-t border-border pt-4">
