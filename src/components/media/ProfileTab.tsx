@@ -109,34 +109,22 @@ export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
       const text = await file.text();
       const items: ExportItem[] = JSON.parse(text);
       if (!Array.isArray(items) || items.length === 0) throw new Error('无效文件');
-      let success = 0;
-      for (const item of items) {
-        // 先确保 media 存在（用 douban_id 或 title 搜索 upsert）
-        let mediaId = '';
-        if (item.douban_id) {
-          // 尝试通过 douban_id 查找已有记录
-          const search = await fetch(`/api/search?q=${encodeURIComponent(item.title)}`).then((r) => r.json());
-          const found = search.results?.find((m: { douban_id?: string }) => m.douban_id === item.douban_id);
-          mediaId = found?.id || '';
-        }
-        if (!mediaId) {
-          // 跳过找不到 media 的项
-          continue;
-        }
-        await apiFetch(`/api/favorites`, {
+
+      const { imported, total, errors } = await apiFetch<{ imported: number; total: number; errors?: string[] }>(
+        `/api/import`,
+        {
           method: 'POST',
-          body: JSON.stringify({
-            media_id: mediaId,
-            status: item.status,
-            personal_rating: item.personal_rating ?? undefined,
-            note: item.note ?? undefined,
-            progress: item.progress ?? undefined,
-          }),
+          body: text,
+          headers: { 'Content-Type': 'application/json' },
           deviceId,
-        });
-        success++;
-      }
-      setMsg({ type: 'success', text: `已导入 ${success}/${items.length} 条收藏` });
+        },
+      );
+      setMsg({
+        type: errors?.length ? 'error' : 'success',
+        text: errors?.length
+          ? `已导入 ${imported}/${total} 条，${errors.length} 条失败`
+          : `已导入 ${imported}/${total} 条收藏`,
+      });
       onImportDone?.();
     } catch {
       setMsg({ type: 'error', text: '导入失败，请检查文件格式' });
