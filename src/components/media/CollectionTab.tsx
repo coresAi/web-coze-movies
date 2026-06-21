@@ -40,12 +40,10 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
   const [searchLoading, setSearchLoading] = useState(false);
   const [source, setSource] = useState<'local' | 'douban' | 'empty' | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
   const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
   const [unfavConfirm, setUnfavConfirm] = useState<FavoriteWithMedia | null>(null);
 
-  // —— 取消收藏确认弹窗 ——
-  const [confirmUnfav, setConfirmUnfav] = useState<FavoriteWithMedia | null>(null);
+  
 
   // —— 收藏状态 ——
   const [statusFilter, setStatusFilter] = useState<WatchStatus>('wish');
@@ -53,9 +51,9 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
   const [favLoading2, setFavLoading2] = useState(false);
   const [counts, setCounts] = useState<Record<WatchStatus, number>>({ wish: 0, watching: 0, watched: 0, dropped: 0 });
 
-  // 加载收藏列表（当不在搜索模式时）
+  // 加载收藏列表（当不在搜索模式时：即 q 为空）
   useEffect(() => {
-    if (!deviceId || searched) return;
+    if (!deviceId || q.trim() !== '') return;
     let cancelled = false;
     setFavLoading2(true);
     void (async () => {
@@ -81,14 +79,13 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
     return () => {
       cancelled = true;
     };
-  }, [deviceId, statusFilter, refreshKey, searched]);
+  }, [deviceId, statusFilter, refreshKey, q]);
 
   // 搜索
   async function runSearch(query: string) {
     if (!query.trim()) return;
     setSearchLoading(true);
     setSearchError(null);
-    setSearched(true);
     try {
       const data = await apiFetch<{ results: MediaItem[]; source: 'local' | 'douban' | 'empty' }>(
         `/api/search?q=${encodeURIComponent(query)}`,
@@ -123,9 +120,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
     setQ('');
     setResults([]);
     setSearchError(null);
-    setSearched(false);
     setSource(null);
-    onRefresh();
   }
 
   // 收藏 / 取消收藏（搜索结果卡片）
@@ -177,7 +172,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
           <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.8} />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); if (!e.target.value.trim()) clearSearch(); }}
             onKeyDown={handleKey}
             placeholder="搜索电影、电视剧..."
             className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
@@ -193,7 +188,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       </div>
 
       {/* —— 搜索模式 —— */}
-      {searched && (
+      {q.trim() !== '' && (
         <>
           {searchLoading && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
@@ -250,7 +245,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       )}
 
       {/* —— 收藏模式（默认） —— */}
-      {!searched && (
+      {q.trim() === '' && (
         <>
           {/* 状态 tab */}
           <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -316,7 +311,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       )}
 
       {/* 未搜索也不是空收藏 — 猜你想看 */}
-      {!searched && favLoading2 && favItems.length === 0 && !favLoading2 && (
+      {q.trim() === '' && favLoading2 && favItems.length === 0 && !favLoading2 && (
         <div className="flex flex-col gap-3 pt-2">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">猜你想看</p>
           <div className="flex flex-wrap gap-2">
@@ -334,7 +329,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       )}
 
       {/* 收藏为空时展示猜你想看 */}
-      {!searched && !favLoading2 && favItems.length === 0 && (
+      {q.trim() === '' && !favLoading2 && favItems.length === 0 && (
         <div className="flex flex-col gap-3">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">猜你想看</p>
           <div className="flex flex-wrap gap-2">
@@ -352,12 +347,12 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       )}
 
       {/* 取消收藏确认弹窗 */}
-      <AlertDialog open={!!confirmUnfav} onOpenChange={(o) => !o && setConfirmUnfav(null)}>
+      <AlertDialog open={!!unfavConfirm} onOpenChange={(o) => !o && setUnfavConfirm(null)}>
         <AlertDialogContent className="border-border bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle>取消收藏</AlertDialogTitle>
             <AlertDialogDescription>
-              确定取消收藏《{confirmUnfav?.media?.title || confirmUnfav?.media_id}》吗？
+              确定取消收藏《{unfavConfirm?.media?.title || unfavConfirm?.media_id}》吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
