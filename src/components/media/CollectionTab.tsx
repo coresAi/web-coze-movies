@@ -11,6 +11,16 @@ import {
 } from '@/lib/media-types';
 import { Poster } from '@/components/media/Poster';
 import { Search, X, Loader2, Star } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const STATUSES: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped'];
 const HOT_KEYWORDS = ['肖申克的救赎', '盗梦空间', '琅琊榜', '流浪地球', '隐秘的角落', '千与千寻', '让子弹飞', '黑镜'];
@@ -32,6 +42,10 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
+  const [unfavConfirm, setUnfavConfirm] = useState<FavoriteWithMedia | null>(null);
+
+  // —— 取消收藏确认弹窗 ——
+  const [confirmUnfav, setConfirmUnfav] = useState<FavoriteWithMedia | null>(null);
 
   // —— 收藏状态 ——
   const [statusFilter, setStatusFilter] = useState<WatchStatus>('wish');
@@ -111,6 +125,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
     setSearchError(null);
     setSearched(false);
     setSource(null);
+    onRefresh();
   }
 
   // 收藏 / 取消收藏（搜索结果卡片）
@@ -139,6 +154,18 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
         next.delete(mid);
         return next;
       });
+    }
+  }
+
+  // 确认取消收藏
+  async function handleConfirmUnfav() {
+    if (!unfavConfirm || !deviceId) return;
+    try {
+      await apiFetch(`/api/favorites?media_id=${unfavConfirm.media_id}`, { method: 'DELETE', deviceId });
+      setUnfavConfirm(null);
+      onRefresh();
+    } catch {
+      // 静默
     }
   }
 
@@ -274,10 +301,13 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
                   <button onClick={() => onSelect(f.media, f)} className="w-full text-left">
                     <Poster item={f.media} size="sm" />
                   </button>
-                  {/* 收藏状态星星 —— 仅展示已收藏 */}
-                  <div className="pointer-events-none absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm">
+                  {/* 收藏状态星星 —— 点击取消收藏 */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setUnfavConfirm(f); }}
+                    className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform active:scale-90"
+                  >
                     <Star className="size-3.5 fill-amber-400 text-amber-400" strokeWidth={1.8} />
-                  </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -320,6 +350,24 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
           </div>
         </div>
       )}
+
+      {/* 取消收藏确认弹窗 */}
+      <AlertDialog open={!!confirmUnfav} onOpenChange={(o) => !o && setConfirmUnfav(null)}>
+        <AlertDialogContent className="border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle>取消收藏</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定取消收藏《{confirmUnfav?.media?.title || confirmUnfav?.media_id}》吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>再想想</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUnfav} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确定取消
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
