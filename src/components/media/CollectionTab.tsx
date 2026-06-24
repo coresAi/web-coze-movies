@@ -6,9 +6,13 @@ import {
   STATUS_LABELS,
   type WatchStatus,
   type MediaItem,
-  type FavoriteWithMedia,
-  type FavoriteResponse,
 } from '@/lib/media-types';
+import {
+  getLocalFavorites,
+  addSearchResultAsFavorite,
+  removeSearchResultFavorite,
+  type LocalFavorite,
+} from '@/lib/local-favorites';
 import { Poster } from '@/components/media/Poster';
 import { Search, X, Loader2, Star } from 'lucide-react';
 import {
@@ -26,12 +30,10 @@ const STATUSES: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped'];
 const HOT_KEYWORDS = ['肖申克的救赎', '盗梦空间', '琅琊榜', '流浪地球', '隐秘的角落', '千与千寻', '让子弹飞', '黑镜'];
 
 interface CollectionTabProps {
-  refreshKey: number;
-  onSelect: (m: MediaItem, fav?: FavoriteWithMedia | null) => void;
-  onRefresh: () => void;
+  onSelect: (m: MediaItem) => void;
 }
 
-export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTabProps) {
+export function CollectionTab({ onSelect }: CollectionTabProps) {
   const deviceId = useDeviceId();
 
   // —— 搜索状态 ——
@@ -41,45 +43,26 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
   const [source, setSource] = useState<'local' | 'douban' | 'empty' | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
-  const [unfavConfirm, setUnfavConfirm] = useState<FavoriteWithMedia | null>(null);
 
-  
-
-  // —— 收藏状态 ——
+  // —— 本地收藏状态 ——
   const [statusFilter, setStatusFilter] = useState<WatchStatus>('wish');
-  const [favItems, setFavItems] = useState<FavoriteWithMedia[]>([]);
-  const [favLoading2, setFavLoading2] = useState(false);
-  const [counts, setCounts] = useState<Record<WatchStatus, number>>({ wish: 0, watching: 0, watched: 0, dropped: 0 });
+  const [favItems, setFavItems] = useState<LocalFavorite[]>([]);
+  const [localRefresh, setLocalRefresh] = useState(0); // 手动触发收藏列表刷新
+  const [unfavTarget, setUnfavTarget] = useState<LocalFavorite | null>(null);
 
-  // 加载收藏列表（当不在搜索模式时：即 q 为空）
+  // 从 localStorage 读取收藏列表
+  function loadFavorites() {
+    const all = getLocalFavorites();
+    const filtered = all.filter((f) => f.status === statusFilter);
+    // 按 updated_at 降序
+    filtered.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    setFavItems(filtered);
+  }
+
+  // 收藏状态变化后刷新
   useEffect(() => {
-    if (!deviceId || q.trim() !== '') return;
-    let cancelled = false;
-    setFavLoading2(true);
-    void (async () => {
-      try {
-        const [listData, allData] = await Promise.all([
-          apiFetch<{ results: FavoriteWithMedia[] }>(`/api/favorites?status=${statusFilter}`, { deviceId }),
-          apiFetch<{ results: FavoriteWithMedia[] }>(`/api/favorites`, { deviceId }),
-        ]);
-        if (cancelled) return;
-        setFavItems(listData.results);
-        const c: Record<WatchStatus, number> = { wish: 0, watching: 0, watched: 0, dropped: 0 };
-        allData.results.forEach((f) => {
-          c[f.status] = (c[f.status] ?? 0) + 1;
-        });
-        setCounts(c);
-      } catch {
-        if (cancelled) return;
-        setFavItems([]);
-      } finally {
-        if (!cancelled) setFavLoading2(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [deviceId, statusFilter, refreshKey, q]);
+    loadFavorites();
+  }, [statusFilter, localRefresh]);
 
   // 搜索
   async function runSearch(query: string) {
@@ -91,7 +74,13 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
         `/api/search?q=${encodeURIComponent(query)}`,
         { deviceId }
       );
-      setResults(data.results);
+      // 合并本地收藏状态
+      const localFavs = getLocalFavorites();
+      const merged = data.results.map((m) => ({
+        ...m,
+        favorite_status: (localFavs.find((f) => f.media_id === m.id || f.douban_id === m.douban_id)?.status ?? null) as WatchStatus | null,
+      }));
+      setResults(merged);
       setSource(data.source);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '搜索失败';
@@ -124,25 +113,20 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
   }
 
   // 收藏 / 取消收藏（搜索结果卡片）
-  async function toggleFav(m: MediaItem) {
-    if (!deviceId) return;
+  function toggleFav(m: MediaItem) {
     const mid = m.id;
     setFavLoading((prev) => new Set(prev).add(mid));
     try {
       if (m.favorite_status) {
-        await apiFetch(`/api/favorites?media_id=${mid}`, { method: 'DELETE', deviceId });
+        // 已收藏 → 取消
+        removeSearchResultFavorite(m);
         setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: null } : r)));
       } else {
-        const data = await apiFetch<FavoriteResponse>(`/api/favorites`, {
-          method: 'POST',
-          body: JSON.stringify({ media_id: mid, status: 'wish' }),
-          deviceId,
-        });
-        setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: 'wish' } : r)));
+        // 未收藏 → 添加
+        addSearchResultAsFavorite(m);
+        setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: 'wish' as WatchStatus } : r)));
       }
-      onRefresh();
-    } catch {
-      // 静默
+      setLocalRefresh((n) => n + 1);
     } finally {
       setFavLoading((prev) => {
         const next = new Set(prev);
@@ -152,17 +136,15 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
     }
   }
 
-  // 确认取消收藏
-  async function handleConfirmUnfav() {
-    if (!unfavConfirm || !deviceId) return;
-    try {
-      await apiFetch(`/api/favorites?media_id=${unfavConfirm.media_id}`, { method: 'DELETE', deviceId });
-      setUnfavConfirm(null);
-      onRefresh();
-    } catch {
-      // 静默
-    }
+  // 确认取消收藏（收藏列表中）
+  function handleConfirmUnfav() {
+    if (!unfavTarget) return;
+    removeSearchResultFavorite(unfavTarget);
+    setUnfavTarget(null);
+    setLocalRefresh((n) => n + 1);
   }
+
+  const isSearching = q.trim() !== '';
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
@@ -188,7 +170,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       </div>
 
       {/* —— 搜索模式 —— */}
-      {q.trim() !== '' && (
+      {isSearching && (
         <>
           {searchLoading && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
@@ -224,7 +206,7 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        void toggleFav(m);
+                        toggleFav(m);
                       }}
                       disabled={favLoading.has(m.id)}
                       className="absolute right-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform active:scale-110"
@@ -245,12 +227,13 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
       )}
 
       {/* —— 收藏模式（默认） —— */}
-      {q.trim() === '' && (
+      {!isSearching && (
         <>
           {/* 状态 tab */}
           <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {STATUSES.map((s) => {
               const isActive = statusFilter === s;
+              const count = getLocalFavorites().filter((f) => f.status === s).length;
               return (
                 <button
                   key={s}
@@ -262,13 +245,13 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
                   }`}
                 >
                   <span>{STATUS_LABELS[s]}</span>
-                  {counts[s] > 0 && (
+                  {count > 0 && (
                     <span
                       className={`rounded-full px-1.5 text-[10px] font-medium ${
                         isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      {counts[s]}
+                      {count}
                     </span>
                   )}
                 </button>
@@ -276,29 +259,23 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
             })}
           </div>
 
-          {favLoading2 && (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          )}
-
-          {!favLoading2 && favItems.length === 0 && (
+          {favItems.length === 0 && (
             <div className="rounded-md border border-dashed border-border bg-card/40 px-4 py-10 text-center">
               <p className="text-sm text-muted-foreground">这里还空着</p>
               <p className="mt-1 text-xs text-muted-foreground/70">在搜索框找一部想看的吧</p>
             </div>
           )}
 
-          {!favLoading2 && favItems.length > 0 && (
+          {favItems.length > 0 && (
             <div className="grid grid-cols-3 gap-3 pb-4">
               {favItems.map((f, idx) => (
-                <div key={f.id} className="relative fade-up" style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}>
-                  <button onClick={() => onSelect(f.media, f)} className="w-full text-left">
-                    <Poster item={f.media} size="sm" />
+                <div key={f.douban_id} className="relative fade-up" style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}>
+                  <button onClick={() => onSelect({ id: f.media_id, title: f.title, original_title: f.original_title, poster_url: f.poster_url, type: f.type, year: f.year, rating: f.rating, director: f.director, douban_id: f.douban_id } as MediaItem)} className="w-full text-left">
+                    <Poster item={f} size="sm" />
                   </button>
                   {/* 收藏状态星星 —— 点击取消收藏 */}
                   <button
-                    onClick={(e) => { e.stopPropagation(); setUnfavConfirm(f); }}
+                    onClick={(e) => { e.stopPropagation(); setUnfavTarget(f); }}
                     className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform active:scale-90"
                   >
                     <Star className="size-3.5 fill-amber-400 text-amber-400" strokeWidth={1.8} />
@@ -307,52 +284,34 @@ export function CollectionTab({ refreshKey, onSelect, onRefresh }: CollectionTab
               ))}
             </div>
           )}
+
+          {/* 收藏为空时展示猜你想看 */}
+          {favItems.length === 0 && (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">猜你想看</p>
+              <div className="flex flex-wrap gap-2">
+                {HOT_KEYWORDS.map((kw) => (
+                  <button
+                    key={kw}
+                    onClick={() => handleHotClick(kw)}
+                    className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 active:bg-accent"
+                  >
+                    {kw}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* 未搜索也不是空收藏 — 猜你想看 */}
-      {q.trim() === '' && favLoading2 && favItems.length === 0 && !favLoading2 && (
-        <div className="flex flex-col gap-3 pt-2">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">猜你想看</p>
-          <div className="flex flex-wrap gap-2">
-            {HOT_KEYWORDS.map((kw) => (
-              <button
-                key={kw}
-                onClick={() => handleHotClick(kw)}
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 active:bg-accent"
-              >
-                {kw}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 收藏为空时展示猜你想看 */}
-      {q.trim() === '' && !favLoading2 && favItems.length === 0 && (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">猜你想看</p>
-          <div className="flex flex-wrap gap-2">
-            {HOT_KEYWORDS.map((kw) => (
-              <button
-                key={kw}
-                onClick={() => handleHotClick(kw)}
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 active:bg-accent"
-              >
-                {kw}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 取消收藏确认弹窗 */}
-      <AlertDialog open={!!unfavConfirm} onOpenChange={(o) => !o && setUnfavConfirm(null)}>
+      <AlertDialog open={!!unfavTarget} onOpenChange={(o) => !o && setUnfavTarget(null)}>
         <AlertDialogContent className="border-border bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle>取消收藏</AlertDialogTitle>
             <AlertDialogDescription>
-              确定取消收藏《{unfavConfirm?.media?.title || unfavConfirm?.media_id}》吗？
+              确定取消收藏《{unfavTarget?.title}》吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

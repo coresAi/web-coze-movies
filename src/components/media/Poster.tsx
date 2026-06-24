@@ -1,10 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import type { MediaItem } from '@/lib/media-types';
+
+export interface PosterItem {
+  title: string;
+  poster_url: string | null;
+  type: string;
+  year: number | null;
+  rating: number | null;
+}
 
 interface PosterProps {
-  item: MediaItem;
+  item: PosterItem;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }

@@ -54,15 +54,21 @@ scripts/
 - `description text?` · `poster_url text?` · `rating numeric?`
 - 海报用 CSS 渐变占位：`poster_url = "gradient:hex1/hex2"`，前端 `Poster` 组件解析
 
-`favorites`:
+`favorites` (Supabase — 仅付费用户使用):
 - 复合唯一键 `(device_id, media_id)`
 - `status wish|watching|watched|dropped` · `personal_rating int?` · `note text?` · `progress int?`
 
-## 设备隔离
+## 设备隔离 & 数据存储（免费用户 = 本地优先）
 
-- 无登录态：使用 `localStorage` 存 `media_device_id`（UUID），请求时通过 `x-device-id` header 透传
-- 服务端 `lib/device.ts` 兜底从 cookie 取，再不行生成新的（httpOnly + 1y）
-- API 不区分用户 → 所有设备共享 `media_items`，`favorites` 按 device 隔离
+### 免费用户（当前架构）
+- **收藏数据全部存储在浏览器 `localStorage`**，不占云端数据库费用
+- 读写通过 `src/lib/local-favorites.ts` 中的 `getLocalFavorites()` / `upsertLocalFavorite()` / `removeLocalFavorite()` 等函数
+- 搜索和详情仍由后端 API + Supabase `media_items` 表提供（公共数据，所有用户共享）
+- 导出：从 localStorage 读取 → 下载 JSON 文件（纯前端操作）
+- 导入：读取 JSON 文件 → 写入 localStorage，**不走后端 API 也不依赖豆瓣搜索**
+
+### 付费用户（未来规划）
+- 收藏数据同步至 Supabase `favorites` 表，按 `device_id` 隔离
 
 ## API 约定
 
@@ -70,13 +76,14 @@ scripts/
 |---|---|---|
 | `/api/search?q=xxx` | GET | 模糊匹配 title / original_title / director / actors（PostgreSQL `ilike` + `cs`），按 rating 降序，最多 20 条 |
 | `/api/media/[id]` | GET | 返回媒体 + 当前设备 favorite 状态（需 `x-device-id`） |
-| `/api/favorites` | GET | 列出当前设备收藏，可选 `?status=xxx` 过滤 |
-| `/api/favorites` | POST | upsert，支持 **partial update**：未传的字段保留 DB 已有的值 |
+| `/api/favorites` | GET | 列出收藏（供付费用户使用，免费用户前端读 localStorage） |
+| `/api/favorites` | POST | upsert，支持 partial update |
 | `/api/favorites?media_id=xxx` | DELETE | 删除收藏 |
+| `/api/import` | POST | 批量导入（免费用户用），按 douban_id upsert media + 创建收藏 |
 
 ## 关键实现细节
 
-- **Partial update**：`POST /api/favorites` 先 `select *` 查已有记录，再 merge 未传入的字段后 upsert。这样前端调同一个接口既能新增又能改状态/评分/备注。
+- **Partial update**：`POST /api/favorites` 先 `select *` 查已有记录，再 merge 未传入的字段后 upsert。前端已改用 localStorage（`src/lib/local-favorites.ts`），API 端保留供付费用户使用。
 - **海报**：`Poster` 组件只接受 `posterUrl` 字符串，自己解析 `gradient:hex1/hex2` 协议，渲染为 `linear-gradient(135deg, #c1, #c2)`。若 URL 为 null，用 fallback 深棕色渐变。
 - **状态徽章颜色**：`STATUS_COLORS` 在 `lib/media-types.ts` 定义了 4 种状态对应的 Tailwind 颜色（amber / emerald / rose / zinc）。
 - **设备 ID 注入**：`useDeviceId()` hook 在 `useEffect` 里读 localStorage，避免 SSR 阶段的 hydration mismatch。

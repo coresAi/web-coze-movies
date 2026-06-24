@@ -1,27 +1,40 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { STATUS_LABELS, type MediaItem, type WatchStatus, type FavoriteWithMedia, type Vendor } from '@/lib/media-types';
+import { STATUS_LABELS, type MediaItem, type WatchStatus, type Vendor } from '@/lib/media-types';
 import { Poster } from '@/components/media/Poster';
 import { X, Star, Check, Loader2, ExternalLink, Play } from 'lucide-react';
 import { useDeviceId, apiFetch } from '@/lib/client';
+import { getLocalFavorite, upsertLocalFavorite, removeLocalFavorite } from '@/lib/local-favorites';
 
 interface DetailSheetProps {
   item: MediaItem;
-  initialFavorite: FavoriteWithMedia | null;
   onClose: () => void;
-  onChange: () => void;
 }
 
 const STATUS_BUTTONS: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped'];
 
-export function DetailSheet({ item, initialFavorite, onClose, onChange }: DetailSheetProps) {
+export function DetailSheet({ item, onClose }: DetailSheetProps) {
   const deviceId = useDeviceId();
-  const [favorite, setFavorite] = useState<FavoriteWithMedia | null>(initialFavorite);
   const [vendors, setVendors] = useState<Vendor[] | null>(null);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState(initialFavorite?.note ?? '');
+  const [localVersion, setLocalVersion] = useState(0); // 触发重读
+
+  // 从 localStorage 读取当前收藏状态
+  function readLocal() {
+    const doubanId = item.douban_id ?? '';
+    if (!doubanId) return null;
+    return getLocalFavorite(doubanId);
+  }
+
+  const localFav = readLocal();
+  const [note, setNote] = useState(localFav?.note ?? '');
+
+  // 同步 note 当 localFav 变化时
+  useEffect(() => {
+    setNote(localFav?.note ?? '');
+  }, [localVersion]);
 
   // 获取播放源
   useEffect(() => {
@@ -38,91 +51,87 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
     return () => { cancelled = true; };
   }, [deviceId, item.id]);
 
-  async function setStatus(status: WatchStatus) {
-    if (!deviceId) return;
+  function setStatus(status: WatchStatus) {
+    const doubanId = item.douban_id ?? '';
+    if (!doubanId) return;
     setSaving(true);
     try {
-      const data = await apiFetch<{ result: FavoriteWithMedia }>('/api/favorites', {
-        method: 'POST',
-        deviceId,
-        body: JSON.stringify({
-          media_id: item.id,
-          status,
-          personal_rating: favorite?.personal_rating ?? null,
-          note: note || null,
-        }),
+      upsertLocalFavorite({
+        douban_id: doubanId,
+        media_id: item.id,
+        title: item.title,
+        original_title: item.original_title ?? null,
+        poster_url: item.poster_url ?? null,
+        type: item.type,
+        year: item.year ?? null,
+        rating: item.rating ?? null,
+        director: item.director ?? null,
+        status,
+        personal_rating: localFav?.personal_rating ?? null,
+        note: note || null,
+        progress: localFav?.progress ?? 0,
       });
-      setFavorite(data.result);
-      onChange();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      setLocalVersion((n) => n + 1);
     } finally {
       setSaving(false);
     }
   }
 
-  async function setRating(rating: number) {
-    if (!deviceId) return;
-    if (!favorite) {
-      // 没收藏：先 wish 收藏
-      try {
-        const data = await apiFetch<{ result: FavoriteWithMedia }>('/api/favorites', {
-          method: 'POST',
-          deviceId,
-          body: JSON.stringify({ media_id: item.id, status: 'wish', personal_rating: rating }),
-        });
-        setFavorite(data.result);
-        onChange();
-      } catch (e) {
-        alert(e instanceof Error ? e.message : '保存失败');
-      }
-      return;
-    }
+  function setRating(rating: number) {
+    const doubanId = item.douban_id ?? '';
+    if (!doubanId) return;
     setSaving(true);
     try {
-      const data = await apiFetch<{ result: FavoriteWithMedia }>('/api/favorites', {
-        method: 'POST',
-        deviceId,
-        body: JSON.stringify({
-          media_id: item.id,
-          status: favorite.status,
-          personal_rating: rating,
-          note: favorite.note,
-        }),
+      const current = readLocal();
+      const newRating = (current?.personal_rating === rating ? 0 : rating) as 0 | 1 | 2 | 3 | 4 | 5;
+      upsertLocalFavorite({
+        douban_id: doubanId,
+        media_id: item.id,
+        title: item.title,
+        original_title: item.original_title ?? null,
+        poster_url: item.poster_url ?? null,
+        type: item.type,
+        year: item.year ?? null,
+        rating: item.rating ?? null,
+        director: item.director ?? null,
+        status: current?.status ?? 'wish',
+        personal_rating: newRating || null,
+        note: note || null,
+        progress: current?.progress ?? 0,
       });
-      setFavorite(data.result);
-      onChange();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      setLocalVersion((n) => n + 1);
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveNote() {
-    if (!deviceId || !favorite) return;
+  function saveNote() {
+    const doubanId = item.douban_id ?? '';
+    if (!doubanId || !localFav) return;
     setSaving(true);
     try {
-      const data = await apiFetch<{ result: FavoriteWithMedia }>('/api/favorites', {
-        method: 'POST',
-        deviceId,
-        body: JSON.stringify({
-          media_id: item.id,
-          status: favorite.status,
-          personal_rating: favorite.personal_rating,
-          note,
-        }),
+      upsertLocalFavorite({
+        douban_id: doubanId,
+        media_id: item.id,
+        title: item.title,
+        original_title: item.original_title ?? null,
+        poster_url: item.poster_url ?? null,
+        type: item.type,
+        year: item.year ?? null,
+        rating: item.rating ?? null,
+        director: item.director ?? null,
+        status: localFav.status,
+        personal_rating: localFav.personal_rating,
+        note,
+        progress: localFav.progress ?? 0,
       });
-      setFavorite(data.result);
-      onChange();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      setLocalVersion((n) => n + 1);
     } finally {
       setSaving(false);
     }
   }
 
-  const currentStatus = favorite?.status;
+  const currentStatus = localFav?.status;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -215,29 +224,19 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
                 播放平台
               </h2>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                {vendors.map((v, i) => {
-                  const isDoubanApp = v.url.startsWith('douban://');
-                  const handleClick = () => {
-                    if (isDoubanApp) {
-                      window.open(v.url, '_blank');
-                    } else {
-                      window.open(v.url, '_blank', 'noopener,noreferrer');
-                    }
-                  };
-                  return (
-                    <button
-                      key={i}
-                      onClick={handleClick}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-3 py-1.5 text-xs text-foreground/90 transition-colors hover:bg-accent active:scale-[0.97]"
-                    >
-                      <Play className="size-3.5" />
-                      {v.title}
-                      {v.is_paid && (
-                        <span className="text-[10px] text-amber-500/80">付费</span>
-                      )}
-                    </button>
-                  );
-                })}
+                {vendors.map((v, i) => (
+                  <button
+                    key={i}
+                    onClick={() => window.open(v.url, '_blank', 'noopener,noreferrer')}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-3 py-1.5 text-xs text-foreground/90 transition-colors hover:bg-accent active:scale-[0.97]"
+                  >
+                    <Play className="size-3.5" />
+                    {v.title}
+                    {v.is_paid && (
+                      <span className="text-[10px] text-amber-500/80">付费</span>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -272,11 +271,11 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
             <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">我的评分</h2>
             <div className="mt-2 flex gap-1">
               {[1, 2, 3, 4, 5].map((n) => {
-                const filled = (favorite?.personal_rating ?? 0) >= n;
+                const filled = (localFav?.personal_rating ?? 0) >= n;
                 return (
                   <button
                     key={n}
-                    onClick={() => setRating(filled && favorite?.personal_rating === n ? 0 : n)}
+                    onClick={() => setRating(n)}
                     disabled={saving}
                     className="p-1 active:scale-95"
                   >
@@ -292,7 +291,7 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
           </div>
 
           {/* 备注 */}
-          {favorite && (
+          {localFav && (
             <div className="mt-4">
               <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">备注</h2>
               <textarea
@@ -306,7 +305,7 @@ export function DetailSheet({ item, initialFavorite, onClose, onChange }: Detail
             </div>
           )}
 
-          {!favorite && saving && (
+          {!localFav && saving && (
             <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> 保存中...
             </div>

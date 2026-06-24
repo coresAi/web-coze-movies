@@ -3,43 +3,42 @@
 import { useState, useCallback } from 'react';
 import { CollectionTab } from '@/components/media/CollectionTab';
 import { ProfileTab } from '@/components/media/ProfileTab';
+import { BottomNav } from '@/components/media/BottomNav';
 import { DetailSheet } from '@/components/media/DetailSheet';
-import { BottomNav, type TabKey } from '@/components/media/BottomNav';
-import type { MediaItem, FavoriteWithMedia } from '@/lib/media-types';
+import type { MediaItem } from '@/lib/media-types';
 
 export default function Home() {
-  const [tab, setTab] = useState<TabKey>('collection');
-  const [favCount, setFavCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'collection' | 'profile'>('collection');
   const [selMedia, setSelMedia] = useState<MediaItem | null>(null);
-  const [selFav, setSelFav] = useState<FavoriteWithMedia | null>(null);
+  const [impKey, setImpKey] = useState(0);
 
-  // 用于触发收藏列表刷新的 key
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refresh = useCallback(() => setRefreshKey((n) => n + 1), []);
+  const handleSelect = useCallback((media: MediaItem) => {
+    setSelMedia(media);
+  }, []);
 
-  function handleSelect(m: MediaItem, fav?: FavoriteWithMedia | null) {
-    setSelMedia(m);
-    setSelFav(fav ?? null);
-  }
+  const handleImportDone = useCallback(() => {
+    if (activeTab !== 'collection') setActiveTab('collection');
+    else setImpKey((n) => n + 1);
+  }, [activeTab]);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background pb-16">
-      {/* 页面内容 */}
-      {tab === 'collection' && (
-        <CollectionTab refreshKey={refreshKey} onSelect={handleSelect} onRefresh={refresh} />
-      )}
-      {tab === 'profile' && <ProfileTab refreshKey={refreshKey} onImportDone={refresh} />}
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === 'collection' ? (
+          <CollectionTab
+            key={impKey}
+            onSelect={handleSelect}
+          />
+        ) : (
+          <ProfileTab onImportDone={handleImportDone} />
+        )}
+      </div>
+      <BottomNav active={activeTab} onChange={setActiveTab} />
 
-      {/* 底部导航 */}
-      <BottomNav active={tab} onChange={setTab} badge={favCount} />
-
-      {/* 详情弹窗 */}
       {selMedia && (
         <DetailSheet
           item={selMedia}
-          initialFavorite={selFav}
           onClose={() => setSelMedia(null)}
-          onChange={refresh}
         />
       )}
     </div>

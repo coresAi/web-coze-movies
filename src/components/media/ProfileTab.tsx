@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useDeviceId, apiFetch } from '@/lib/client';
-import { Heart, Film, Tv, Bookmark, Search, Download, Upload, Loader2 } from 'lucide-react';
-import type { FavoriteWithMedia, ExportItem } from '@/lib/media-types';
-
-interface ProfileTabProps {
-  refreshKey: number;
-  onImportDone?: () => void;
-}
+import { Heart, Film, Tv, Bookmark, Download, Upload, Loader2, Search } from 'lucide-react';
+import {
+  getLocalFavorites,
+  setLocalFavorites,
+  type LocalFavorite,
+} from '@/lib/local-favorites';
+import type { ExportItem } from '@/lib/media-types';
 
 interface Stats {
   total: number;
@@ -26,8 +25,11 @@ const TIPS = [
   '据说周末补片效率最高。',
 ];
 
-export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
-  const deviceId = useDeviceId();
+interface ProfileTabProps {
+  onImportDone?: () => void;
+}
+
+export function ProfileTab({ onImportDone }: ProfileTabProps) {
   const [stats, setStats] = useState<Stats>({ total: 0, wish: 0, watching: 0, watched: 0, dropped: 0 });
   const [tip, setTip] = useState('');
   const [importing, setImporting] = useState(false);
@@ -35,50 +37,40 @@ export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  function computeStats() {
+    const all = getLocalFavorites();
+    const s: Stats = { total: 0, wish: 0, watching: 0, watched: 0, dropped: 0 };
+    all.forEach((f) => {
+      s.total++;
+      s[f.status]++;
+    });
+    setStats(s);
+  }
+
   useEffect(() => {
-    if (!deviceId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await apiFetch<{ results: FavoriteWithMedia[] }>(`/api/favorites`, { deviceId });
-        if (cancelled) return;
-        const s: Stats = { total: 0, wish: 0, watching: 0, watched: 0, dropped: 0 };
-        data.results.forEach((f) => {
-          s.total++;
-          s[f.status]++;
-        });
-        setStats(s);
-      } catch {
-        if (!cancelled) setStats({ total: 0, wish: 0, watching: 0, watched: 0, dropped: 0 });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [deviceId, refreshKey]);
+    computeStats();
+  }, []);
 
   useEffect(() => {
     setTip(TIPS[Math.floor(Math.random() * TIPS.length)]);
   }, []);
 
-  async function handleExport() {
-    if (!deviceId) return;
+  function handleExport() {
     setExporting(true);
     setMsg(null);
     try {
-      const data = await apiFetch<{ results: FavoriteWithMedia[] }>(`/api/favorites`, { deviceId });
-      const items: ExportItem[] = data.results.map((f) => ({
-        title: f.media.title,
-        original_title: f.media.original_title,
-        type: f.media.type,
-        year: f.media.year,
-        director: f.media.director,
-        actors: f.media.actors,
-        genre: f.media.genre,
-        region: f.media.region,
-        rating: f.media.rating,
-        poster_url: f.media.poster_url,
-        douban_id: f.media.douban_id,
+      const items: ExportItem[] = getLocalFavorites().map((f) => ({
+        title: f.title,
+        original_title: f.original_title,
+        type: f.type,
+        year: f.year,
+        director: f.director,
+        actors: null,
+        genre: null,
+        region: null,
+        rating: f.rating,
+        poster_url: f.poster_url,
+        douban_id: f.douban_id,
         status: f.status,
         personal_rating: f.personal_rating,
         note: f.note,
@@ -100,37 +92,65 @@ export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
     }
   }
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !deviceId) return;
+    if (!file) return;
     setImporting(true);
     setMsg(null);
     try {
-      const text = await file.text();
-      const items: ExportItem[] = JSON.parse(text);
-      if (!Array.isArray(items) || items.length === 0) throw new Error('无效文件');
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const text = ev.target?.result as string;
+          const items: ExportItem[] = JSON.parse(text);
+          if (!Array.isArray(items) || items.length === 0) throw new Error('无效文件');
 
-      const { imported, total, errors } = await apiFetch<{ imported: number; total: number; errors?: string[] }>(
-        `/api/import`,
-        {
-          method: 'POST',
-          body: text,
-          headers: { 'Content-Type': 'application/json' },
-          deviceId,
-        },
-      );
-      setMsg({
-        type: errors?.length ? 'error' : 'success',
-        text: errors?.length
-          ? `已导入 ${imported}/${total} 条，${errors.length} 条失败`
-          : `已导入 ${imported}/${total} 条收藏`,
-      });
-      onImportDone?.();
+          // 转成 LocalFavorite 格式写入 localStorage
+          const imported: LocalFavorite[] = items.map((item) => ({
+            douban_id: item.douban_id ?? '',
+            media_id: '',
+            title: item.title,
+            original_title: item.original_title ?? null,
+            poster_url: item.poster_url ?? null,
+            type: item.type,
+            year: item.year ?? null,
+            rating: item.rating ?? null,
+            director: item.director ?? null,
+            status: item.status,
+            personal_rating: item.personal_rating ?? null,
+            note: item.note ?? null,
+            progress: item.progress ?? 0,
+            created_at: item.export_at,
+            updated_at: item.export_at,
+          }));
+
+          // 合并：已有 douban_id 的覆盖更新，新增的追加
+          const existing = getLocalFavorites();
+          const existingMap = new Map(existing.map((f) => [f.douban_id, f]));
+          for (const item of imported) {
+            if (item.douban_id && existingMap.has(item.douban_id)) {
+              const old = existingMap.get(item.douban_id)!;
+              existingMap.set(item.douban_id, { ...old, ...item, media_id: old.media_id });
+            } else if (item.douban_id) {
+              existingMap.set(item.douban_id, item);
+            }
+          }
+          setLocalFavorites(Array.from(existingMap.values()));
+
+          computeStats();
+          setMsg({ type: 'success', text: `已导入 ${imported.length} 条收藏到本地` });
+          onImportDone?.();
+        } catch {
+          setMsg({ type: 'error', text: '导入失败，请检查文件格式' });
+        } finally {
+          setImporting(false);
+          if (fileRef.current) fileRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
     } catch {
       setMsg({ type: 'error', text: '导入失败，请检查文件格式' });
-    } finally {
       setImporting(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
@@ -160,10 +180,10 @@ export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">使用说明</p>
         <div className="space-y-2 rounded-md border border-border bg-card p-4 text-xs text-foreground/80">
-          <Row icon={Search}>在「发现」里搜索电影或电视剧</Row>
+          <Row icon={Search}>在「收藏」里搜索电影或电视剧</Row>
           <Row icon={Bookmark}>点击海报打开详情，标记「想看 / 在看 / 看过 / 弃剧」</Row>
           <Row icon={Heart}>给喜欢的作品打 1-5 星，写几句备注</Row>
-          <Row icon={Film}>所有数据保存在本机，换设备会看不到哦</Row>
+          <Row icon={Film}>所有数据保存在本地浏览器，换设备记得导出导入</Row>
         </div>
       </div>
 
@@ -203,7 +223,7 @@ export function ProfileTab({ refreshKey, onImportDone }: ProfileTabProps) {
       </div>
 
       <p className="pb-2 text-center text-[11px] text-muted-foreground/60">
-        本机设备 ID：{deviceId ? deviceId.slice(0, 8) + '…' : '生成中'}
+        数据仅保存在本机浏览器中，导出 JSON 文件可迁移到其他设备
       </p>
     </div>
   );
@@ -239,3 +259,4 @@ function Row({ icon: Icon, children }: { icon: React.ComponentType<{ className?:
     </div>
   );
 }
+
