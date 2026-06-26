@@ -80,6 +80,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   // —— 筛选面板 ——
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterPrefs, setFilterPrefs] = useState<FilterPrefs>(defaultFilter);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   // 初始化加载缓存
   useEffect(() => {
@@ -102,6 +103,13 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   // 从 localStorage 读取收藏列表
   function loadFavorites() {
     const all = getLocalFavorites();
+
+    // 计算各状态数量
+    const counts: Record<string, number> = {};
+    all.forEach((f) => {
+      counts[f.status] = (counts[f.status] || 0) + 1;
+    });
+    setStatusCounts(counts);
 
     // 应用状态筛选
     let filtered = all.filter((f) => f.status === statusFilter);
@@ -251,7 +259,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
           <div className="scrollbar-none mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
             {STATUSES.map((s) => {
               const isActive = statusFilter === s;
-              const count = getLocalFavorites().filter((f) => f.status === s).length;
+              const count: number = statusCounts[s] ?? 0;
               return (
                 <button
                   key={s}
