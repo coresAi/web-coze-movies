@@ -419,10 +419,15 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
                         title: f.title,
                         original_title: f.original_title,
                         poster_url: f.poster_url,
+                        backdrop_url: f.backdrop_url,
                         type: f.type,
                         year: f.year,
                         rating: f.rating,
                         director: f.director,
+                        actors: f.actors,
+                        genre: f.genre,
+                        region: f.region,
+                        description: f.description,
                         douban_id: f.douban_id,
                       } as MediaItem)
                     }

@@ -10,11 +10,15 @@ export interface LocalFavorite {
   title: string;
   original_title: string | null;
   poster_url: string | null;
+  backdrop_url: string | null;
   type: 'movie' | 'tv';
   year: number | null;
   rating: number | null;
   director: string | null;
+  actors: string[] | null;
   genre: string[] | null;
+  region: string | null;
+  description: string | null;
   status: WatchStatus;
   personal_rating: number | null;
   note: string | null;
@@ -67,7 +71,7 @@ export function setLocalFavorites(items: LocalFavorite[]): void {
 }
 
 export function addSearchResultAsFavorite(
-  item: { id: string; douban_id: string | null; title: string; poster_url: string | null; type: string; year: number | null; rating: number | null; director: string | null; original_title?: string | null; genre?: string[] | null },
+  item: { id: string; douban_id: string | null; title: string; poster_url: string | null; backdrop_url?: string | null; type: string; year: number | null; rating: number | null; director: string | null; actors?: string[] | null; genre?: string[] | null; region?: string | null; description?: string | null; original_title?: string | null },
   status: WatchStatus = 'wish',
 ): LocalFavorite {
   return upsertLocalFavorite({
@@ -76,11 +80,15 @@ export function addSearchResultAsFavorite(
     title: item.title,
     original_title: item.original_title ?? null,
     poster_url: item.poster_url ?? null,
+    backdrop_url: item.backdrop_url ?? null,
     type: item.type === 'tv' ? 'tv' : 'movie',
     year: item.year ?? null,
     rating: item.rating ?? null,
     director: item.director ?? null,
+    actors: item.actors ?? null,
     genre: item.genre ?? null,
+    region: item.region ?? null,
+    description: item.description ?? null,
     status,
     personal_rating: null,
     note: null,

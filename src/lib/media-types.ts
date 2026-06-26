@@ -74,6 +74,8 @@ export interface ExportItem {
   region: string | null;
   rating: number | null;
   poster_url: string | null;
+  backdrop_url: string | null;
+  description: string | null;
   douban_id: string | null;
   status: WatchStatus;
   personal_rating: number | null;
