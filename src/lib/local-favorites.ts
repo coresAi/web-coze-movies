@@ -14,6 +14,7 @@ export interface LocalFavorite {
   year: number | null;
   rating: number | null;
   director: string | null;
+  genre: string[] | null;
   status: WatchStatus;
   personal_rating: number | null;
   note: string | null;
@@ -66,7 +67,7 @@ export function setLocalFavorites(items: LocalFavorite[]): void {
 }
 
 export function addSearchResultAsFavorite(
-  item: { id: string; douban_id: string | null; title: string; poster_url: string | null; type: string; year: number | null; rating: number | null; director: string | null; original_title?: string | null },
+  item: { id: string; douban_id: string | null; title: string; poster_url: string | null; type: string; year: number | null; rating: number | null; director: string | null; original_title?: string | null; genre?: string[] | null },
   status: WatchStatus = 'wish',
 ): LocalFavorite {
   return upsertLocalFavorite({
@@ -79,6 +80,7 @@ export function addSearchResultAsFavorite(
     year: item.year ?? null,
     rating: item.rating ?? null,
     director: item.director ?? null,
+    genre: item.genre ?? null,
     status,
     personal_rating: null,
     note: null,
