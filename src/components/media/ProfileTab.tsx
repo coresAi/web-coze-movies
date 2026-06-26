@@ -116,6 +116,7 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
             year: item.year ?? null,
             rating: item.rating ?? null,
             director: item.director ?? null,
+            genre: item.genre ?? null,
             status: item.status,
             personal_rating: item.personal_rating ?? null,
             note: item.note ?? null,

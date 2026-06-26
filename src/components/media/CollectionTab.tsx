@@ -29,18 +29,16 @@ import {
 const STATUSES: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped'];
 const HOT_KEYWORDS = ['肖申克的救赎', '盗梦空间', '琅琊榜', '流浪地球', '隐秘的角落', '千与千寻', '让子弹飞', '黑镜'];
 
-const ALL_GENRES = ['科幻', '喜剧', '动作', '悬疑', '爱情', '动画', '剧情', '纪录片', '恐怖', '战争', '犯罪', '冒险'];
-
 const FILTER_STORAGE_KEY = 'collection_filter_prefs';
 
 interface FilterPrefs {
   showStatus: boolean;
   showGenre: boolean;
-  activeGenres: string[];
+  activeGenre: string | null; // null = 全部
 }
 
 function defaultFilter(): FilterPrefs {
-  return { showStatus: true, showGenre: false, activeGenres: [] };
+  return { showStatus: true, showGenre: false, activeGenre: null };
 }
 
 function loadFilter(): FilterPrefs {
@@ -93,6 +91,14 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     saveFilter(filterPrefs);
   }, [filterPrefs]);
 
+  // 从收藏列表去重提取风格
+  const genreOptions = useMemo(() => {
+    const all = getLocalFavorites();
+    const set = new Set<string>();
+    all.forEach((f) => f.genre?.forEach((g) => set.add(g)));
+    return Array.from(set).sort();
+  }, [localRefresh, filterPrefs]);
+
   // 从 localStorage 读取收藏列表
   function loadFavorites() {
     const all = getLocalFavorites();
@@ -101,10 +107,8 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     let filtered = all.filter((f) => f.status === statusFilter);
 
     // 应用风格筛选
-    if (filterPrefs.activeGenres.length > 0) {
-      filtered = filtered.filter((f) => {
-        return true; // LocalFavorite 暂无 genre 字段，后续扩展
-      });
+    if (filterPrefs.activeGenre) {
+      filtered = filtered.filter((f) => f.genre?.includes(filterPrefs.activeGenre!));
     }
 
     // 按 updated_at 降序
@@ -134,11 +138,8 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
 
       // 应用风格筛选
       let filtered: MediaItem[] = merged;
-      if (filterPrefs.activeGenres.length > 0) {
-        filtered = merged.filter((m) => {
-          if (!m.genre || m.genre.length === 0) return false;
-          return m.genre.some((g) => filterPrefs.activeGenres.includes(g));
-        });
+      if (filterPrefs.activeGenre) {
+        filtered = merged.filter((m) => m.genre?.includes(filterPrefs.activeGenre!));
       }
 
       setResults(filtered);
@@ -202,18 +203,11 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     setLocalRefresh((n) => n + 1);
   }
 
-  // 切换风格标签
-  function toggleGenre(g: string) {
-    setFilterPrefs((prev) => {
-      const exists = prev.activeGenres.includes(g);
-      return {
-        ...prev,
-        activeGenres: exists ? prev.activeGenres.filter((x) => x !== g) : [...prev.activeGenres, g],
-      };
-    });
+  // 切换风格（单选）
+  function selectGenre(g: string | null) {
+    setFilterPrefs((prev) => ({ ...prev, activeGenre: prev.activeGenre === g ? null : g }));
   }
 
-  const hasActiveGenres = filterPrefs.activeGenres.length > 0;
   const showStatusBar = !filterOpen && filterPrefs.showStatus && !q.trim();
   const showGenreBar = !filterOpen && filterPrefs.showGenre;
 
@@ -242,7 +236,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
             type="button"
             onClick={() => setFilterOpen((o) => !o)}
             className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors ${
-              hasActiveGenres || filterOpen
+              filterPrefs.showGenre || filterOpen
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
@@ -285,14 +279,25 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
         )}
 
         {/* 折叠时：风格筛选常驻 */}
-        {showGenreBar && (
+        {showGenreBar && genreOptions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5 px-1 pb-1">
-            {ALL_GENRES.map((g) => {
-              const isActive = filterPrefs.activeGenres.includes(g);
+            {/* 全部按钮 */}
+            <button
+              onClick={() => selectGenre(null)}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                !filterPrefs.activeGenre
+                  ? 'border-primary/60 bg-primary/15 text-primary'
+                  : 'border-border bg-card text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              全部
+            </button>
+            {genreOptions.map((g) => {
+              const isActive = filterPrefs.activeGenre === g;
               return (
                 <button
                   key={g}
-                  onClick={() => toggleGenre(g)}
+                  onClick={() => selectGenre(g)}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                     isActive
                       ? 'border-primary/60 bg-primary/15 text-primary'
