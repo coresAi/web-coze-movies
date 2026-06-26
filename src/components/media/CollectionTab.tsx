@@ -44,26 +44,6 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
 
-  // —— 分类筛选 ——
-  const [typeFilter, setTypeFilter] = useState<'all' | 'movie' | 'tv'>('all');
-  const [genreFilter, setGenreFilter] = useState<string | null>(null);
-
-  const TYPE_CHIPS = [
-    { value: 'all' as const, label: '全部' },
-    { value: 'movie' as const, label: '电影' },
-    { value: 'tv' as const, label: '电视剧' },
-  ];
-  const GENRE_CHIPS = ['恐怖', '悬疑', '喜剧', '科幻', '动作', '爱情', '动画', '剧情'];
-
-  // 根据分类筛选结果
-  function filterByCategory<T extends { type?: string; genre?: string[] | null }>(items: T[], typeFilter: 'all' | 'movie' | 'tv', genreFilter: string | null): T[] {
-    return items.filter((item) => {
-      if (typeFilter !== 'all' && item.type !== typeFilter) return false;
-      if (genreFilter && (!item.genre || !item.genre.includes(genreFilter))) return false;
-      return true;
-    });
-  }
-
   // —— 本地收藏状态 ——
   const [statusFilter, setStatusFilter] = useState<WatchStatus>('wish');
   const [favItems, setFavItems] = useState<LocalFavorite[]>([]);
@@ -73,8 +53,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   // 从 localStorage 读取收藏列表
   function loadFavorites() {
     const all = getLocalFavorites();
-    const byStatus = all.filter((f) => f.status === statusFilter);
-    const filtered = filterByCategory(byStatus, typeFilter, 'all');
+    const filtered = all.filter((f) => f.status === statusFilter);
     // 按 updated_at 降序
     filtered.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     setFavItems(filtered);
@@ -83,7 +62,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   // 收藏状态变化后刷新
   useEffect(() => {
     loadFavorites();
-  }, [statusFilter, typeFilter, localRefresh]);
+  }, [statusFilter, localRefresh]);
 
   // 搜索
   async function runSearch(query: string) {
@@ -131,7 +110,6 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     setResults([]);
     setSearchError(null);
     setSource(null);
-    setGenreFilter(null);
   }
 
   // 收藏 / 取消收藏（搜索结果卡片）
@@ -194,37 +172,6 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
       {/* —— 搜索模式 —— */}
       {isSearching && (
         <>
-          {/* 分类筛选芯片 */}
-          <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-            {TYPE_CHIPS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => { setTypeFilter(t.value); setGenreFilter(null); }}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs transition-colors ${
-                  typeFilter === t.value && !genreFilter
-                    ? 'border-primary/60 bg-primary/15 text-primary'
-                    : 'border-border bg-card text-muted-foreground'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-            <span className="mx-1 self-center text-muted-foreground/30">|</span>
-            {GENRE_CHIPS.map((g) => (
-              <button
-                key={g}
-                onClick={() => { setGenreFilter(genreFilter === g ? null : g); setTypeFilter('all'); }}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs transition-colors ${
-                  genreFilter === g
-                    ? 'border-primary/60 bg-primary/15 text-primary'
-                    : 'border-border bg-card text-muted-foreground'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-
           {searchLoading && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
@@ -246,12 +193,12 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {(() => { const filtered = filterByCategory(results, typeFilter, genreFilter); return `共 ${results.length} 部${filtered.length < results.length ? ` · 筛选 ${filtered.length} 部` : ''}`; })()} ·{' '}
+                  共 {results.length} 部 ·{' '}
                   <span className="text-foreground/70">{source === 'douban' ? '豆瓣数据' : '本地资料库'}</span>
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 pb-4">
-                {filterByCategory(results, typeFilter, genreFilter).map((m, idx) => (
+                {results.map((m, idx) => (
                   <div key={m.id} className="relative fade-up" style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}>
                     <button onClick={() => onSelect(m)} className="w-full text-left">
                       <Poster item={m} size="sm" />
@@ -282,23 +229,6 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
       {/* —— 收藏模式（默认） —— */}
       {!isSearching && (
         <>
-          {/* 分类筛选芯片 */}
-          <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-            {TYPE_CHIPS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setTypeFilter(t.value)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs transition-colors ${
-                  typeFilter === t.value
-                    ? 'border-primary/60 bg-primary/15 text-primary'
-                    : 'border-border bg-card text-muted-foreground'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {/* 状态 tab */}
           <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {STATUSES.map((s) => {
