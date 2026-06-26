@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useDeviceId, apiFetch } from '@/lib/client';
 import {
   STATUS_LABELS,
@@ -14,7 +14,7 @@ import {
   type LocalFavorite,
 } from '@/lib/local-favorites';
 import { Poster } from '@/components/media/Poster';
-import { Search, X, Loader2, Star } from 'lucide-react';
+import { Search, X, Loader2, Star, Filter } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +28,34 @@ import {
 
 const STATUSES: WatchStatus[] = ['wish', 'watching', 'watched', 'dropped'];
 const HOT_KEYWORDS = ['肖申克的救赎', '盗梦空间', '琅琊榜', '流浪地球', '隐秘的角落', '千与千寻', '让子弹飞', '黑镜'];
+
+const ALL_GENRES = ['科幻', '喜剧', '动作', '悬疑', '爱情', '动画', '剧情', '纪录片', '恐怖', '战争', '犯罪', '冒险'];
+
+const FILTER_STORAGE_KEY = 'collection_filters';
+
+interface FilterState {
+  statuses: string[];
+  genres: string[];
+}
+
+function defaultFilter(): FilterState {
+  return { statuses: ['wish', 'watched'], genres: [] };
+}
+
+function loadFilter(): FilterState {
+  if (typeof window === 'undefined') return defaultFilter();
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : defaultFilter();
+  } catch {
+    return defaultFilter();
+  }
+}
+
+function saveFilter(f: FilterState) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f));
+}
 
 interface CollectionTabProps {
   onSelect: (m: MediaItem) => void;
@@ -44,25 +72,50 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [favLoading, setFavLoading] = useState<Set<string>>(new Set());
 
-  // —— 本地收藏状态 ——
+  // —— 收藏状态 ——
   const [statusFilter, setStatusFilter] = useState<WatchStatus>('wish');
   const [favItems, setFavItems] = useState<LocalFavorite[]>([]);
-  const [localRefresh, setLocalRefresh] = useState(0); // 手动触发收藏列表刷新
+  const [localRefresh, setLocalRefresh] = useState(0);
   const [unfavTarget, setUnfavTarget] = useState<LocalFavorite | null>(null);
+
+  // —— 筛选面板 ——
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterState, setFilterState] = useState<FilterState>(defaultFilter);
+
+  // 初始化加载缓存
+  useEffect(() => {
+    setFilterState(loadFilter());
+  }, []);
+
+  // 缓存变化时持久化
+  useEffect(() => {
+    saveFilter(filterState);
+  }, [filterState]);
 
   // 从 localStorage 读取收藏列表
   function loadFavorites() {
     const all = getLocalFavorites();
-    const filtered = all.filter((f) => f.status === statusFilter);
+
+    // 应用状态筛选
+    let filtered = all.filter((f) => f.status === statusFilter);
+
+    // 应用筛选面板中的风格筛选
+    if (filterState.genres.length > 0) {
+      filtered = filtered.filter((f) => {
+        // 从 media_items 查询或本地判断风格（目前 LocalFavorite 没有存 genre）
+        // 先通过 api 查询，这里简化为只按已有数据筛选
+        return true; // 暂不限制，后续可扩展
+      });
+    }
+
     // 按 updated_at 降序
     filtered.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     setFavItems(filtered);
   }
 
-  // 收藏状态变化后刷新
   useEffect(() => {
     loadFavorites();
-  }, [statusFilter, localRefresh]);
+  }, [statusFilter, localRefresh, filterState]);
 
   // 搜索
   async function runSearch(query: string) {
@@ -74,13 +127,22 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
         `/api/search?q=${encodeURIComponent(query)}`,
         { deviceId }
       );
-      // 合并本地收藏状态
       const localFavs = getLocalFavorites();
       const merged = data.results.map((m) => ({
         ...m,
         favorite_status: (localFavs.find((f) => f.media_id === m.id || f.douban_id === m.douban_id)?.status ?? null) as WatchStatus | null,
       }));
-      setResults(merged);
+
+      // 应用风格筛选
+      let filtered = merged;
+      if (filterState.genres.length > 0) {
+        filtered = merged.filter((m) => {
+          if (!m.genre || m.genre.length === 0) return false;
+          return m.genre.some((g) => filterState.genres.includes(g));
+        });
+      }
+
+      setResults(filtered);
       setSource(data.source);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '搜索失败';
@@ -97,7 +159,7 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
         void runSearch(q);
       }
     },
-    [q]
+    [q, filterState]
   );
 
   function handleHotClick(kw: string) {
@@ -118,11 +180,9 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     setFavLoading((prev) => new Set(prev).add(mid));
     try {
       if (m.favorite_status) {
-        // 已收藏 → 取消
         removeSearchResultFavorite(m);
         setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: null } : r)));
       } else {
-        // 未收藏 → 添加
         addSearchResultAsFavorite(m);
         setResults((prev) => prev.map((r) => (r.id === mid ? { ...r, favorite_status: 'wish' as WatchStatus } : r)));
       }
@@ -136,7 +196,6 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     }
   }
 
-  // 确认取消收藏（收藏列表中）
   function handleConfirmUnfav() {
     if (!unfavTarget) return;
     removeSearchResultFavorite(unfavTarget);
@@ -144,11 +203,45 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
     setLocalRefresh((n) => n + 1);
   }
 
+  // 筛选切换
+  function toggleStatusFilter(s: string) {
+    setFilterState((prev) => {
+      const exists = prev.statuses.includes(s);
+      return {
+        ...prev,
+        statuses: exists ? prev.statuses.filter((x) => x !== s) : [...prev.statuses, s],
+      };
+    });
+  }
+
+  function toggleGenreFilter(g: string) {
+    setFilterState((prev) => {
+      const exists = prev.genres.includes(g);
+      return {
+        ...prev,
+        genres: exists ? prev.genres.filter((x) => x !== g) : [...prev.genres, g],
+      };
+    });
+  }
+
+  // 有活跃筛选的标签
+  const activeFilterTags = useMemo(() => {
+    const tags: { key: string; label: string }[] = [];
+    filterState.statuses.forEach((s) => {
+      tags.push({ key: `s:${s}`, label: STATUS_LABELS[s as WatchStatus] || s });
+    });
+    filterState.genres.forEach((g) => {
+      tags.push({ key: `g:${g}`, label: g });
+    });
+    return tags;
+  }, [filterState]);
+
+  const hasFilter = activeFilterTags.length > 0;
   const isSearching = q.trim() !== '';
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
-      {/* 搜索框（一直显示） */}
+      {/* 搜索框 + 筛选按钮 */}
       <div className="sticky top-0 z-10 -mx-4 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
         <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5">
           <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.8} />
@@ -166,7 +259,95 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
               <X className="size-4" />
             </button>
           )}
+          {/* 筛选按钮 */}
+          <button
+            type="button"
+            onClick={() => setFilterOpen((o) => !o)}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors ${
+              hasFilter || filterOpen
+                ? 'bg-primary/15 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Filter className="size-3.5" strokeWidth={1.8} />
+            筛选
+          </button>
         </div>
+
+        {/* 折叠时显示已选筛选标签 */}
+        {!filterOpen && hasFilter && (
+          <div className="mt-2 flex flex-wrap gap-1.5 px-1">
+            {activeFilterTags.map((t) => (
+              <span
+                key={t.key}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/8 px-2.5 py-0.5 text-[11px] text-primary"
+              >
+                {t.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 展开的筛选面板 */}
+        {filterOpen && (
+          <div className="mt-2 rounded-xl border border-border bg-card px-4 py-3 shadow-lg">
+            {/* 第一行：状态筛选 */}
+            <div className="mb-3">
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">状态筛选</p>
+              <div className="flex flex-wrap gap-2">
+                {['wish', 'watched'].map((s) => {
+                  const checked = filterState.statuses.includes(s);
+                  return (
+                    <label
+                      key={s}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                        checked
+                          ? 'border-primary/50 bg-primary/12 text-primary'
+                          : 'border-border text-muted-foreground'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStatusFilter(s)}
+                        className="size-3 accent-primary"
+                      />
+                      {STATUS_LABELS[s as WatchStatus]}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 第二行：风格筛选 */}
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">风格筛选</p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_GENRES.map((g) => {
+                  const checked = filterState.genres.includes(g);
+                  return (
+                    <label
+                      key={g}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                        checked
+                          ? 'border-primary/50 bg-primary/12 text-primary'
+                          : 'border-border text-muted-foreground'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleGenreFilter(g)}
+                        className="size-3 accent-primary"
+                      />
+                      {g}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* —— 搜索模式 —— */}
@@ -270,10 +451,24 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
             <div className="grid grid-cols-3 gap-3 pb-4">
               {favItems.map((f, idx) => (
                 <div key={f.douban_id} className="relative fade-up" style={{ animationDelay: `${Math.min(idx, 12) * 30}ms` }}>
-                  <button onClick={() => onSelect({ id: f.media_id, title: f.title, original_title: f.original_title, poster_url: f.poster_url, type: f.type, year: f.year, rating: f.rating, director: f.director, douban_id: f.douban_id } as MediaItem)} className="w-full text-left">
+                  <button
+                    onClick={() =>
+                      onSelect({
+                        id: f.media_id,
+                        title: f.title,
+                        original_title: f.original_title,
+                        poster_url: f.poster_url,
+                        type: f.type,
+                        year: f.year,
+                        rating: f.rating,
+                        director: f.director,
+                        douban_id: f.douban_id,
+                      } as MediaItem)
+                    }
+                    className="w-full text-left"
+                  >
                     <Poster item={f} size="sm" />
                   </button>
-                  {/* 收藏状态星星 —— 点击取消收藏 */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setUnfavTarget(f); }}
                     className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform active:scale-90"
