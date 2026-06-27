@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#0F0E0C"/>
+  <!-- Film reel outer circle -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#E8A33D" stroke-width="18"/>
+  <!-- Film reel inner circle -->
+  <circle cx="256" cy="256" r="80" fill="#E8A33D"/>
+  <!-- Film frame holes -->
+  <circle cx="256" cy="102" r="16" fill="#0F0E0C"/>
+  <circle cx="256" cy="410" r="16" fill="#0F0E0C"/>
+  <circle cx="102" cy="256" r="16" fill="#0F0E0C"/>
+  <circle cx="410" cy="256" r="16" fill="#0F0E0C"/>
+  <!-- Diagonal holes -->
+  <circle cx="135" cy="135" r="16" fill="#0F0E0C"/>
+  <circle cx="377" cy="135" r="16" fill="#0F0E0C"/>
+  <circle cx="135" cy="377" r="16" fill="#0F0E0C"/>
+  <circle cx="377" cy="377" r="16" fill="#0F0E0C"/>
+  <!-- Play triangle -->
+  <polygon points="230,210 230,302 310,256" fill="#0F0E0C"/>
+</svg>
