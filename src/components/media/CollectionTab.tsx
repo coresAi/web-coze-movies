@@ -138,6 +138,10 @@ export function CollectionTab({ onSelect }: CollectionTabProps) {
         `/api/search?q=${encodeURIComponent(query)}`,
         { deviceId }
       );
+      // 处理非标准响应（如沙箱离线、实例被回收等）
+      if (!data || !Array.isArray(data.results)) {
+        throw new Error('服务暂时不可用，请稍后重试');
+      }
       const localFavs = getLocalFavorites();
       const merged = data.results.map((m) => ({
         ...m,
