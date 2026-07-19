@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Vendor } from '@/lib/media-types';
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 export async function GET(
   request: NextRequest,

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { MediaItem, MediaType } from '@/lib/media-types';
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 const DOUBAN_SEARCH_URL = 'https://movie.douban.com/j/subject_suggest';
 const DOUBAN_ABSTRACT_URL = 'https://movie.douban.com/j/subject_abstract';
