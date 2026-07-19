@@ -43,36 +43,9 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
     (async () => {
       setVendorsLoading(true);
       try {
-        const data = await apiFetch<{ media: any; vendors: Vendor[] }>(`/api/media/${item.id}`, { deviceId });
+        const data = await apiFetch<{ vendors: Vendor[] }>(`/api/media/${item.douban_id || item.id}`, { deviceId });
         if (cancelled) return;
         if (data.vendors) setVendors(data.vendors);
-        // 同步 API 返回的完整媒体数据到 localStorage
-        if (data.media && item.douban_id) {
-          const m = data.media;
-          const existing = getLocalFavorite(item.douban_id);
-          if (existing) {
-            upsertLocalFavorite({
-              douban_id: item.douban_id,
-              media_id: item.id,
-              title: m.title ?? existing.title,
-              original_title: m.original_title ?? existing.original_title,
-              poster_url: m.poster_url ?? existing.poster_url,
-              backdrop_url: m.backdrop_url ?? existing.backdrop_url,
-              type: m.type === 'tv' ? 'tv' : 'movie',
-              year: m.year ?? existing.year,
-              rating: m.rating ?? existing.rating,
-              director: m.director ?? existing.director,
-              actors: m.actors ?? existing.actors,
-              genre: m.genre ?? existing.genre,
-              region: m.region ?? existing.region,
-              description: m.description ?? existing.description,
-              status: existing.status,
-              personal_rating: existing.personal_rating,
-              note: existing.note,
-              progress: existing.progress,
-            });
-          }
-        }
       } catch (_) { /* ignore */ }
       if (!cancelled) setVendorsLoading(false);
     })();
