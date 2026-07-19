@@ -53,7 +53,9 @@ function loadFilter(): FilterPrefs {
 
 function saveFilter(f: FilterPrefs) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f));
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f));
+  } catch { /* ignore */ }
 }
 
 interface CollectionTabProps {

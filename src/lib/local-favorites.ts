@@ -37,6 +37,16 @@ export function getLocalFavorites(): LocalFavorite[] {
   }
 }
 
+function safeSetItem(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    // 隐私模式 / 存储满 / 其他异常
+    return false;
+  }
+}
+
 export function getLocalFavorite(doubanId: string): LocalFavorite | null {
   return getLocalFavorites().find((f) => f.douban_id === doubanId) ?? null;
 }
@@ -57,17 +67,17 @@ export function upsertLocalFavorite(fav: Omit<LocalFavorite, 'created_at' | 'upd
     result = { ...fav, created_at: fav.created_at ?? now, updated_at: now } as LocalFavorite;
     list.push(result);
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  safeSetItem(STORAGE_KEY, JSON.stringify(list));
   return result;
 }
 
 export function removeLocalFavorite(doubanId: string): void {
   const list = getLocalFavorites().filter((f) => f.douban_id !== doubanId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  safeSetItem(STORAGE_KEY, JSON.stringify(list));
 }
 
 export function setLocalFavorites(items: LocalFavorite[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  safeSetItem(STORAGE_KEY, JSON.stringify(items));
 }
 
 export function addSearchResultAsFavorite(
