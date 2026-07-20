@@ -15,10 +15,10 @@ export function WatchlistTab({ onSelect }: WatchlistTabProps) {
 
   function load() {
     const all = getLocalFavorites();
-    const wish = all
-      .filter((f) => f.status === 'wish')
+    const watching = all
+      .filter((f) => f.status === 'watching')
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-    setWishItems(wish);
+    setWishItems(watching);
   }
 
   useEffect(() => {
@@ -44,13 +44,13 @@ export function WatchlistTab({ onSelect }: WatchlistTabProps) {
       {/* 标题 */}
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold text-foreground">追剧</h2>
-        <span className="text-xs text-muted-foreground">{wishItems.length} 部想看</span>
+        <span className="text-xs text-muted-foreground">{wishItems.length} 部在看</span>
       </div>
 
       {wishItems.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-card/40 px-4 py-16 text-center">
-          <p className="text-sm text-muted-foreground">还没有想看的影视</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">去「收藏」页搜索并标记为「想看」吧</p>
+          <p className="text-sm text-muted-foreground">还没有在看的影视</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">去「收藏」页搜索并标记为「在看」吧</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3 pb-20">
