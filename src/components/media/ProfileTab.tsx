@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Heart, Film, Tv, Bookmark, Download, Upload, Loader2, Search } from 'lucide-react';
+import { Heart, Film, Tv, Bookmark, Download, Upload, Loader2, Search, Settings, Play } from 'lucide-react';
 import {
   getLocalFavorites,
   setLocalFavorites,
+  getDefaultPlayUrl,
+  setDefaultPlayUrl,
   type LocalFavorite,
 } from '@/lib/local-favorites';
 import type { ExportItem } from '@/lib/media-types';
@@ -36,6 +38,8 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
   const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [defaultPlayUrl, setPlayUrl] = useState('');
+  const [editingPlayUrl, setEditingPlayUrl] = useState(false);
 
   function computeStats() {
     const all = getLocalFavorites();
@@ -49,6 +53,7 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
 
   useEffect(() => {
     computeStats();
+    setPlayUrl(getDefaultPlayUrl());
   }, []);
 
   useEffect(() => {
@@ -77,6 +82,7 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
         personal_rating: f.personal_rating,
         note: f.note,
         progress: f.progress,
+        custom_url: f.custom_url,
         export_at: new Date().toISOString(),
       }));
       const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
@@ -127,6 +133,7 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
             personal_rating: item.personal_rating ?? null,
             note: item.note ?? null,
             progress: item.progress ?? 0,
+            custom_url: item.custom_url ?? null,
             created_at: item.export_at,
             updated_at: item.export_at,
           }));
@@ -191,6 +198,60 @@ export function ProfileTab({ onImportDone }: ProfileTabProps) {
           <Row icon={Bookmark}>点击海报打开详情，标记「想看 / 在看 / 看过 / 弃剧」</Row>
           <Row icon={Heart}>给喜欢的作品打 1-5 星，写几句备注</Row>
           <Row icon={Film}>所有数据保存在本地浏览器，换设备记得导出导入</Row>
+        </div>
+      </div>
+
+      {/* 默认播放平台 */}
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">默认播放平台</p>
+        <div className="rounded-md border border-border bg-card p-4">
+          <p className="text-xs text-muted-foreground/70">
+            设置一个全局播放链接，追剧列表中的影片将默认使用此链接跳转播放。
+            每部影片也可以在详情页单独设置不同的链接。
+          </p>
+          {editingPlayUrl ? (
+            <div className="mt-2.5 flex gap-2">
+              <input
+                value={defaultPlayUrl}
+                onChange={(e) => setPlayUrl(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 rounded-md border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+                autoFocus
+                inputMode="url"
+                enterKeyHint="done"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDefaultPlayUrl(defaultPlayUrl);
+                    setEditingPlayUrl(false);
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  setDefaultPlayUrl(defaultPlayUrl);
+                  setEditingPlayUrl(false);
+                }}
+                className="rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground active:scale-95"
+              >
+                确定
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2.5 flex items-center gap-2">
+              {defaultPlayUrl ? (
+                <span className="flex-1 truncate text-sm text-foreground/80">{defaultPlayUrl}</span>
+              ) : (
+                <span className="flex-1 text-sm text-muted-foreground/50">未设置</span>
+              )}
+              <button
+                onClick={() => setEditingPlayUrl(true)}
+                className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground active:bg-accent"
+              >
+                <Settings className="size-3" />
+                {defaultPlayUrl ? '修改' : '设置'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

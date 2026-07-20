@@ -81,5 +81,6 @@ export interface ExportItem {
   personal_rating: number | null;
   note: string | null;
   progress: number | null;
+  custom_url: string | null;
   export_at: string;
 }

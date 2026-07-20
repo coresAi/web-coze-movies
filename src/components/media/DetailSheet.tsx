@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { STATUS_LABELS, type MediaItem, type WatchStatus, type Vendor } from '@/lib/media-types';
 import { Poster } from '@/components/media/Poster';
-import { X, Star, Check, Loader2, ExternalLink, Play } from 'lucide-react';
+import { X, Star, Check, Loader2, ExternalLink, Play, Link, Pencil } from 'lucide-react';
 import { useDeviceId, apiFetch } from '@/lib/client';
-import { getLocalFavorite, upsertLocalFavorite, removeLocalFavorite } from '@/lib/local-favorites';
+import { getLocalFavorite, upsertLocalFavorite, removeLocalFavorite, getDefaultPlayUrl } from '@/lib/local-favorites';
 
 interface DetailSheetProps {
   item: MediaItem;
@@ -30,10 +30,13 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
 
   const localFav = readLocal();
   const [note, setNote] = useState(localFav?.note ?? '');
+  const [customUrl, setCustomUrl] = useState(localFav?.custom_url ?? '');
+  const [editingUrl, setEditingUrl] = useState(false);
 
-  // 同步 note 当 localFav 变化时
+  // 同步 note / customUrl 当 localFav 变化时
   useEffect(() => {
     setNote(localFav?.note ?? '');
+    setCustomUrl(localFav?.custom_url ?? '');
   }, [localVersion]);
 
   // 获取播放源，同时同步完整字段到 localStorage
@@ -76,6 +79,7 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
         personal_rating: localFav?.personal_rating ?? null,
         note: note || null,
         progress: localFav?.progress ?? 0,
+        custom_url: customUrl || null,
       });
       setLocalVersion((n) => n + 1);
     } finally {
@@ -109,6 +113,7 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
         personal_rating: newRating || null,
         note: note || null,
         progress: current?.progress ?? 0,
+        custom_url: customUrl || null,
       });
       setLocalVersion((n) => n + 1);
     } finally {
@@ -140,6 +145,7 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
         personal_rating: localFav.personal_rating,
         note,
         progress: localFav.progress ?? 0,
+        custom_url: customUrl || null,
       });
       setLocalVersion((n) => n + 1);
     } finally {
@@ -170,10 +176,26 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
 
         {/* 内容滚动区 */}
         <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
-          <h1 className="font-serif text-2xl font-semibold leading-tight text-foreground">{item.title}</h1>
-          {item.original_title && (
-            <p className="mt-1 text-sm text-muted-foreground">{item.original_title}</p>
-          )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-2xl font-semibold leading-tight text-foreground">{item.title}</h1>
+              {item.original_title && (
+                <p className="mt-1 text-sm text-muted-foreground">{item.original_title}</p>
+              )}
+            </div>
+            {/* 一键播放按钮 */}
+            {(customUrl || getDefaultPlayUrl()) && (
+              <a
+                href={customUrl || getDefaultPlayUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-transform active:scale-95"
+              >
+                <Play className="size-3.5" fill="currentColor" />
+                播放
+              </a>
+            )}
+          </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {item.year && <span>{item.year}</span>}
@@ -305,6 +327,56 @@ export function DetailSheet({ item, onClose }: DetailSheetProps) {
               })}
             </div>
           </div>
+
+          {/* 自定义播放链接 */}
+          {localFav && (
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">播放链接</h2>
+                {!editingUrl && (
+                  <button
+                    onClick={() => setEditingUrl(true)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3" />
+                    {customUrl ? '修改' : '添加'}
+                  </button>
+                )}
+              </div>
+              {editingUrl ? (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="flex-1 rounded-md border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+                    autoFocus
+                    inputMode="url"
+                    enterKeyHint="done"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { saveNote(); setEditingUrl(false); } }}
+                  />
+                  <button
+                    onClick={() => { saveNote(); setEditingUrl(false); }}
+                    className="rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground active:scale-95"
+                  >
+                    确定
+                  </button>
+                </div>
+              ) : customUrl ? (
+                <a
+                  href={customUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center gap-1.5 text-sm text-primary underline-offset-2 hover:underline"
+                >
+                  <Link className="size-3.5" />
+                  <span className="truncate">{customUrl}</span>
+                </a>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground/60">未设置，点击「添加」设置播放链接</p>
+              )}
+            </div>
+          )}
 
           {/* 备注 */}
           {localFav && (

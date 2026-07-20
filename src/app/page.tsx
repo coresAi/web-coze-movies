@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from 'react';
 import { CollectionTab } from '@/components/media/CollectionTab';
+import { WatchlistTab } from '@/components/media/WatchlistTab';
 import { ProfileTab } from '@/components/media/ProfileTab';
 import { BottomNav } from '@/components/media/BottomNav';
 import { DetailSheet } from '@/components/media/DetailSheet';
 import type { MediaItem } from '@/lib/media-types';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'collection' | 'profile'>('collection');
+  const [activeTab, setActiveTab] = useState<'collection' | 'watchlist' | 'profile'>('collection');
   const [selMedia, setSelMedia] = useState<MediaItem | null>(null);
   const [impKey, setImpKey] = useState(0);
 
@@ -29,6 +30,8 @@ export default function Home() {
             key={impKey}
             onSelect={handleSelect}
           />
+        ) : activeTab === 'watchlist' ? (
+          <WatchlistTab onSelect={handleSelect} />
         ) : (
           <ProfileTab onImportDone={handleImportDone} />
         )}

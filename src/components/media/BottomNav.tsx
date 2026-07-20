@@ -1,8 +1,8 @@
 'use client';
 
-import { Film, User } from 'lucide-react';
+import { Film, User, Play } from 'lucide-react';
 
-export type TabKey = 'collection' | 'profile';
+export type TabKey = 'collection' | 'watchlist' | 'profile';
 
 interface BottomNavProps {
   active: TabKey;
@@ -12,6 +12,7 @@ interface BottomNavProps {
 
 const TABS: { key: TabKey; label: string; icon: typeof Film }[] = [
   { key: 'collection', label: '收藏', icon: Film },
+  { key: 'watchlist', label: '追剧', icon: Play },
   { key: 'profile', label: '我的', icon: User },
 ];
 

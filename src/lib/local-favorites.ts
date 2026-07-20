@@ -23,6 +23,7 @@ export interface LocalFavorite {
   personal_rating: number | null;
   note: string | null;
   progress: number | null;
+  custom_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -103,8 +104,28 @@ export function addSearchResultAsFavorite(
     personal_rating: null,
     note: null,
     progress: 0,
+    custom_url: null,
     created_at: new Date().toISOString(),
   });
+}
+
+// —— 全局默认播放平台 ——
+const DEFAULT_PLAY_URL_KEY = 'default_play_url';
+
+export function getDefaultPlayUrl(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return localStorage.getItem(DEFAULT_PLAY_URL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setDefaultPlayUrl(url: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(DEFAULT_PLAY_URL_KEY, url);
+  } catch { /* ignore */ }
 }
 
 export function removeSearchResultFavorite(item: { douban_id: string | null }): void {
